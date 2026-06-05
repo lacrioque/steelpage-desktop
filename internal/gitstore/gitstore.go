@@ -1,124 +1,106 @@
+// Package gitstore versions the markdown archive with an embedded git
+// engine (go-git, pure Go) — no git binary required on the user's machine.
+//
+// The desktop build is local-first: commit/log/read-at-ref always work;
+// remote interaction is reduced to an opt-in, push-only backup. There is
+// no pull/rebase surface by design.
+//
+// Known limitation vs the git CLI: history is filtered per path without
+// rename tracking (`--follow`), so a moved file's history starts at the
+// move commit.
 package gitstore
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
+
+	git "github.com/go-git/go-git/v5"
+	gitcfg "github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 )
 
 type Store struct {
 	RepoPath string
 
-	mu         sync.Mutex
-	lastSync   *SyncResult
-	lastSyncAt time.Time
+	repo *git.Repository
+	// mu serializes worktree mutations (add/commit/move/remove). Reads
+	// (log, file-at-ref) work off immutable objects and don't need it.
+	mu sync.Mutex
+	// pushToken authenticates HTTPS pushes (basic auth password). Empty
+	// means anonymous push (e.g. a local bare repo or ssh-agent remote).
+	pushToken string
 }
 
-// SyncResult captures the outcome of a Sync (pull --rebase + optional push).
-type SyncResult struct {
-	Pulled        bool     `json:"pulled"`
-	Pushed        bool     `json:"pushed"`
-	Conflict      bool     `json:"conflict"`
-	RebaseAborted bool     `json:"rebase_aborted"`
-	Error         string   `json:"error,omitempty"`
-	Files         []string `json:"files,omitempty"`
-	At            string   `json:"at"`
-}
-
-// Status is a snapshot of repo state used by the admin UI.
-type Status struct {
-	Remote           string      `json:"remote"`
-	HasRemote        bool        `json:"has_remote"`
-	Branch           string      `json:"branch"`
-	Ahead            int         `json:"ahead"`
-	Behind           int         `json:"behind"`
-	RebaseInProgress bool        `json:"rebase_in_progress"`
-	ConflictFiles    []string    `json:"conflict_files,omitempty"`
-	LastSync         *SyncResult `json:"last_sync,omitempty"`
-}
-
-func New(repoPath string) *Store {
-	return &Store{RepoPath: repoPath}
-}
-
-func (s *Store) run(args ...string) ([]byte, error) {
-	cmd := exec.Command("git", append([]string{"-C", s.RepoPath}, args...)...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+// Open opens the repository at repoPath, initializing a fresh one (branch
+// "main") when the directory isn't a git repo yet — first launch.
+func Open(repoPath string) (*Store, error) {
+	repo, err := git.PlainOpen(repoPath)
+	if errors.Is(err, git.ErrRepositoryNotExists) {
+		repo, err = git.PlainInitWithOptions(repoPath, &git.PlainInitOptions{
+			InitOptions: git.InitOptions{DefaultBranch: plumbing.Main},
+			Bare:        false,
+		})
 	}
-	return stdout.Bytes(), nil
+	if err != nil {
+		return nil, fmt.Errorf("open repo %s: %w", repoPath, err)
+	}
+	return &Store{RepoPath: repoPath, repo: repo}, nil
+}
+
+// SetPushToken wires the HTTPS token used by Push. Called at startup from
+// prefs; safe to leave unset when no remote is configured.
+func (s *Store) SetPushToken(token string) {
+	s.pushToken = token
+}
+
+// noCommitsYet reports whether the error means the repo has no HEAD yet
+// (fresh init, nothing committed). Reads treat that as "empty", not an error.
+func noCommitsYet(err error) bool {
+	return errors.Is(err, plumbing.ErrReferenceNotFound)
+}
+
+// logFor returns a commit iterator filtered to docPath, newest first.
+func (s *Store) logFor(docPath string) (object.CommitIter, error) {
+	return s.repo.Log(&git.LogOptions{FileName: &docPath})
 }
 
 func (s *Store) HeadSHA(docPath string) (string, error) {
-	out, err := s.run("log", "-1", "--format=%H", "--", docPath)
+	iter, err := s.logFor(docPath)
 	if err != nil {
+		if noCommitsYet(err) {
+			return "", nil
+		}
 		return "", err
 	}
-	sha := strings.TrimSpace(string(out))
-	return sha, nil
+	defer iter.Close()
+	c, err := iter.Next()
+	if err != nil {
+		// No commit touched this path (or the iterator is empty).
+		return "", nil
+	}
+	return c.Hash.String(), nil
 }
 
 func (s *Store) LastModified(docPath string) (time.Time, error) {
-	out, err := s.run("log", "-1", "--format=%cI", "--", docPath)
+	iter, err := s.logFor(docPath)
 	if err != nil {
+		if noCommitsYet(err) {
+			return time.Time{}, nil
+		}
 		return time.Time{}, err
 	}
-	raw := strings.TrimSpace(string(out))
-	if raw == "" {
+	defer iter.Close()
+	c, err := iter.Next()
+	if err != nil {
 		return time.Time{}, nil
 	}
-	return time.Parse(time.RFC3339, raw)
-}
-
-// Push pushes the configured branch to the given remote (default "origin").
-// Errors are surfaced verbatim — callers usually run this in the background
-// and log failures rather than failing the user's save.
-func (s *Store) Push(remote string) error {
-	if remote == "" {
-		remote = "origin"
-	}
-	_, err := s.run("push", remote)
-	return err
-}
-
-// HasRemote reports whether the working tree has a remote configured. Used
-// to skip auto-push when the operator hasn't wired one up yet.
-func (s *Store) HasRemote(remote string) bool {
-	if remote == "" {
-		remote = "origin"
-	}
-	_, err := s.run("remote", "get-url", remote)
-	return err == nil
-}
-
-func (s *Store) Commit(docPath, message, authorName, authorEmail string) (string, error) {
-	if _, err := s.run("add", "--", docPath); err != nil {
-		return "", err
-	}
-	if _, err := s.run("diff", "--cached", "--quiet", "--", docPath); err == nil {
-		return s.HeadSHA(docPath)
-	} else {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			return "", err
-		}
-	}
-
-	author := fmt.Sprintf("%s <%s>", authorName, authorEmail)
-	if _, err := s.run("commit", "--author", author, "-m", message); err != nil {
-		return "", err
-	}
-	return s.HeadSHA(docPath)
+	return c.Committer.When, nil
 }
 
 // HistoryEntry is a single commit that touched a document.
@@ -130,53 +112,69 @@ type HistoryEntry struct {
 	Message     string `json:"message"`
 }
 
-// History returns up to `limit` recent commits that touched docPath. Uses
-// --follow so renames are tracked across the file's lifetime.
+// History returns up to `limit` recent commits that touched docPath.
 func (s *Store) History(docPath string, limit int) ([]HistoryEntry, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 10
 	}
-	out, err := s.run(
-		"log",
-		"--follow",
-		fmt.Sprintf("-%d", limit),
-		"--format=%H%x1f%an%x1f%ae%x1f%cI%x1f%s",
-		"--",
-		docPath,
-	)
+	iter, err := s.logFor(docPath)
 	if err != nil {
+		if noCommitsYet(err) {
+			return []HistoryEntry{}, nil
+		}
 		return nil, err
 	}
-	text := strings.TrimSpace(string(out))
-	if text == "" {
-		return []HistoryEntry{}, nil
-	}
-	lines := strings.Split(text, "\n")
-	entries := make([]HistoryEntry, 0, len(lines))
-	for _, line := range lines {
-		parts := strings.SplitN(line, "\x1f", 5)
-		if len(parts) < 5 {
-			continue
+	defer iter.Close()
+
+	entries := make([]HistoryEntry, 0, limit)
+	for len(entries) < limit {
+		c, err := iter.Next()
+		if err != nil {
+			break // io.EOF or storage error — return what we have
 		}
 		entries = append(entries, HistoryEntry{
-			SHA:         parts[0],
-			AuthorName:  parts[1],
-			AuthorEmail: parts[2],
-			Date:        parts[3],
-			Message:     parts[4],
+			SHA:         c.Hash.String(),
+			AuthorName:  c.Author.Name,
+			AuthorEmail: c.Author.Email,
+			Date:        c.Committer.When.Format(time.RFC3339),
+			Message:     firstLine(c.Message),
 		})
 	}
 	return entries, nil
 }
 
-// ReadAtRef returns the file content at a given commit. `ref` must be a hex
-// SHA (7-40 chars) — anything else is rejected so we can't shell out to
-// arbitrary refspecs.
+func firstLine(msg string) string {
+	for i, r := range msg {
+		if r == '\n' {
+			return msg[:i]
+		}
+	}
+	return msg
+}
+
+// ReadAtRef returns the file content at a given commit. `ref` must be a
+// hex SHA (7–40 chars); abbreviated hashes are resolved.
 func (s *Store) ReadAtRef(docPath, ref string) ([]byte, error) {
 	if !isHexSHA(ref) {
 		return nil, fmt.Errorf("invalid ref")
 	}
-	return s.run("show", ref+":"+docPath)
+	hash, err := s.repo.ResolveRevision(plumbing.Revision(ref))
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", ref, err)
+	}
+	commit, err := s.repo.CommitObject(*hash)
+	if err != nil {
+		return nil, fmt.Errorf("commit %s: %w", ref, err)
+	}
+	file, err := commit.File(docPath)
+	if err != nil {
+		return nil, fmt.Errorf("%s at %s: %w", docPath, ref, err)
+	}
+	content, err := file.Contents()
+	if err != nil {
+		return nil, err
+	}
+	return []byte(content), nil
 }
 
 func isHexSHA(s string) bool {
@@ -191,195 +189,153 @@ func isHexSHA(s string) bool {
 	return true
 }
 
-// MoveFile runs `git mv from to` followed by a commit. Both paths must already
-// be safe-joined by the caller. Intermediate destination directories are
-// created on demand since git mv refuses to land in a missing dir.
+// commitStaged creates a commit with the given author. Returns the new SHA.
+func (s *Store) commitStaged(message, authorName, authorEmail string) (string, error) {
+	wt, err := s.repo.Worktree()
+	if err != nil {
+		return "", err
+	}
+	hash, err := wt.Commit(message, &git.CommitOptions{
+		Author: &object.Signature{Name: authorName, Email: authorEmail, When: time.Now()},
+	})
+	if err != nil {
+		return "", err
+	}
+	return hash.String(), nil
+}
+
+// Commit stages docPath and commits it. When the file is unchanged the
+// current head SHA for the path is returned without creating a commit.
+func (s *Store) Commit(docPath, message, authorName, authorEmail string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	wt, err := s.repo.Worktree()
+	if err != nil {
+		return "", err
+	}
+	if _, err := wt.Add(docPath); err != nil {
+		return "", fmt.Errorf("git add %s: %w", docPath, err)
+	}
+	status, err := wt.Status()
+	if err != nil {
+		return "", err
+	}
+	if st, ok := status[docPath]; !ok || st.Staging == git.Unmodified {
+		// Nothing staged for this path — no-op save.
+		return s.HeadSHA(docPath)
+	}
+	sha, err := s.commitStaged(message, authorName, authorEmail)
+	if err != nil {
+		if errors.Is(err, git.ErrEmptyCommit) {
+			return s.HeadSHA(docPath)
+		}
+		return "", err
+	}
+	return sha, nil
+}
+
+// MoveFile renames a document and commits the rename. Destination
+// directories are created on demand.
 func (s *Store) MoveFile(from, to, message, authorName, authorEmail string) (string, error) {
-	destDir := filepath.Dir(to)
-	if destDir != "" && destDir != "." {
-		absDest := filepath.Join(s.RepoPath, destDir)
-		if err := os.MkdirAll(absDest, 0o755); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if destDir := filepath.Dir(to); destDir != "" && destDir != "." {
+		if err := os.MkdirAll(filepath.Join(s.RepoPath, destDir), 0o755); err != nil {
 			return "", fmt.Errorf("mkdir dest: %w", err)
 		}
 	}
-	if _, err := s.run("mv", "--", from, to); err != nil {
-		return "", fmt.Errorf("git mv: %w", err)
+	if err := os.Rename(filepath.Join(s.RepoPath, from), filepath.Join(s.RepoPath, to)); err != nil {
+		return "", fmt.Errorf("rename: %w", err)
 	}
-	author := fmt.Sprintf("%s <%s>", authorName, authorEmail)
-	if _, err := s.run("commit", "--author", author, "-m", message); err != nil {
+	wt, err := s.repo.Worktree()
+	if err != nil {
 		return "", err
 	}
-	return s.HeadSHA(to)
+	// Stage the deletion of the old path and the addition of the new one.
+	if _, err := wt.Add(from); err != nil {
+		return "", fmt.Errorf("stage removal of %s: %w", from, err)
+	}
+	if _, err := wt.Add(to); err != nil {
+		return "", fmt.Errorf("stage %s: %w", to, err)
+	}
+	return s.commitStaged(message, authorName, authorEmail)
 }
 
-// RemoveFile runs `git rm path` then commits.
+// RemoveFile deletes a document and commits the deletion.
 func (s *Store) RemoveFile(docPath, message, authorName, authorEmail string) error {
-	if _, err := s.run("rm", "--", docPath); err != nil {
-		return fmt.Errorf("git rm: %w", err)
-	}
-	author := fmt.Sprintf("%s <%s>", authorName, authorEmail)
-	if _, err := s.run("commit", "--author", author, "-m", message); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	wt, err := s.repo.Worktree()
+	if err != nil {
 		return err
 	}
-	return nil
+	if _, err := wt.Remove(docPath); err != nil {
+		return fmt.Errorf("git rm %s: %w", docPath, err)
+	}
+	_, err = s.commitStaged(message, authorName, authorEmail)
+	return err
 }
 
-// IsRebaseInProgress checks for git's rebase marker directories. When a
-// `pull --rebase` hits a conflict, git leaves these behind until the user
-// resolves or aborts.
-func (s *Store) IsRebaseInProgress() bool {
-	for _, name := range []string{"rebase-merge", "rebase-apply"} {
-		if _, err := os.Stat(filepath.Join(s.RepoPath, ".git", name)); err == nil {
-			return true
+// Push pushes to the given remote (default "origin") using the configured
+// HTTPS token when set. Already-up-to-date is success. Callers usually run
+// this in the background and log failures rather than failing a save.
+func (s *Store) Push(remote string) error {
+	if remote == "" {
+		remote = "origin"
+	}
+	opts := &git.PushOptions{RemoteName: remote}
+	if s.pushToken != "" {
+		// GitHub & friends accept any username with a token password.
+		opts.Auth = &githttp.BasicAuth{Username: "x-access-token", Password: s.pushToken}
+	}
+	err := s.repo.Push(opts)
+	if errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return nil
+	}
+	return err
+}
+
+// HasRemote reports whether the repo has the named remote configured. Used
+// to skip auto-push when no backup remote is wired up.
+func (s *Store) HasRemote(remote string) bool {
+	if remote == "" {
+		remote = "origin"
+	}
+	_, err := s.repo.Remote(remote)
+	return err == nil
+}
+
+// EnsureRemote creates (or repoints) the named remote at url. Idempotent;
+// called at startup when prefs configure a push remote.
+func (s *Store) EnsureRemote(name, url string) error {
+	if name == "" {
+		name = "origin"
+	}
+	existing, err := s.repo.Remote(name)
+	switch {
+	case err == nil:
+		if cfg := existing.Config(); len(cfg.URLs) > 0 && cfg.URLs[0] == url {
+			return nil
 		}
+		if err := s.repo.DeleteRemote(name); err != nil {
+			return fmt.Errorf("repoint remote %s: %w", name, err)
+		}
+	case !errors.Is(err, git.ErrRemoteNotFound):
+		return err
 	}
-	return false
-}
-
-// ConflictFiles returns paths with unmerged entries (status 'U').
-func (s *Store) ConflictFiles() []string {
-	out, err := s.run("diff", "--name-only", "--diff-filter=U")
-	if err != nil {
-		return nil
-	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) == 1 && lines[0] == "" {
-		return nil
-	}
-	return lines
-}
-
-// AbortRebase undoes an in-progress rebase, leaving the tree at the
-// pre-pull state. Safe to call when no rebase is active.
-func (s *Store) AbortRebase() error {
-	if !s.IsRebaseInProgress() {
-		return nil
-	}
-	_, err := s.run("rebase", "--abort")
+	_, err = s.repo.CreateRemote(&gitcfg.RemoteConfig{Name: name, URLs: []string{url}})
 	return err
 }
 
 // CurrentBranch returns the short name of HEAD's branch, or "HEAD" when
-// detached.
+// detached / unborn.
 func (s *Store) CurrentBranch() string {
-	out, err := s.run("rev-parse", "--abbrev-ref", "HEAD")
+	ref, err := s.repo.Head()
 	if err != nil {
 		return "HEAD"
 	}
-	return strings.TrimSpace(string(out))
-}
-
-// AheadBehind returns the number of commits HEAD is ahead/behind the
-// remote-tracking branch. Falls back to (0, 0) when no upstream is set.
-func (s *Store) AheadBehind() (ahead, behind int, err error) {
-	out, err := s.run("rev-list", "--left-right", "--count", "HEAD...@{u}")
-	if err != nil {
-		// No upstream configured — not actually an error.
-		return 0, 0, nil
-	}
-	parts := strings.Fields(strings.TrimSpace(string(out)))
-	if len(parts) != 2 {
-		return 0, 0, nil
-	}
-	ahead, _ = strconv.Atoi(parts[0])
-	behind, _ = strconv.Atoi(parts[1])
-	return ahead, behind, nil
-}
-
-// PullRebase fetches the remote and rebases the current branch onto its
-// upstream. Returns conflictFiles when the rebase paused due to merge
-// conflicts; in that case `err` is nil but the caller must NOT proceed
-// to push and should expose the conflict to the operator.
-func (s *Store) PullRebase(remote string) (conflictFiles []string, err error) {
-	if remote == "" {
-		remote = "origin"
-	}
-	if !s.HasRemote(remote) {
-		return nil, fmt.Errorf("remote %q not configured", remote)
-	}
-	if s.IsRebaseInProgress() {
-		return s.ConflictFiles(), fmt.Errorf("rebase already in progress; resolve or abort first")
-	}
-	_, err = s.run("pull", "--rebase", remote)
-	if err != nil {
-		// A conflict leaves the rebase state behind — surface the files.
-		if s.IsRebaseInProgress() {
-			return s.ConflictFiles(), nil
-		}
-		return nil, err
-	}
-	return nil, nil
-}
-
-// Sync runs PullRebase then Push, recording the outcome for the status API.
-// Conflicts halt the push and leave the rebase visible to the admin.
-func (s *Store) Sync(remote string) SyncResult {
-	res := SyncResult{At: time.Now().UTC().Format(time.RFC3339)}
-	defer func() {
-		s.mu.Lock()
-		copy := res
-		s.lastSync = &copy
-		s.lastSyncAt = time.Now()
-		s.mu.Unlock()
-	}()
-
-	if remote == "" {
-		remote = "origin"
-	}
-	if !s.HasRemote(remote) {
-		res.Error = fmt.Sprintf("remote %q not configured", remote)
-		return res
-	}
-	conflicts, err := s.PullRebase(remote)
-	if err != nil {
-		res.Error = err.Error()
-		return res
-	}
-	if len(conflicts) > 0 {
-		res.Pulled = false
-		res.Conflict = true
-		res.Files = conflicts
-		return res
-	}
-	res.Pulled = true
-	if err := s.Push(remote); err != nil {
-		res.Error = err.Error()
-		return res
-	}
-	res.Pushed = true
-	return res
-}
-
-// LastSync returns the most recent SyncResult, or nil if Sync hasn't run.
-func (s *Store) LastSync() *SyncResult {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.lastSync == nil {
-		return nil
-	}
-	copy := *s.lastSync
-	return &copy
-}
-
-// SnapshotStatus collects all the bits the admin UI cares about.
-func (s *Store) SnapshotStatus(remote string) Status {
-	if remote == "" {
-		remote = "origin"
-	}
-	status := Status{
-		Remote:           remote,
-		HasRemote:        s.HasRemote(remote),
-		Branch:           s.CurrentBranch(),
-		RebaseInProgress: s.IsRebaseInProgress(),
-		LastSync:         s.LastSync(),
-	}
-	if status.HasRemote {
-		ahead, behind, _ := s.AheadBehind()
-		status.Ahead = ahead
-		status.Behind = behind
-	}
-	if status.RebaseInProgress {
-		status.ConflictFiles = s.ConflictFiles()
-	}
-	return status
+	return ref.Name().Short()
 }

@@ -63,7 +63,16 @@ func main() {
 	}
 
 	r := render.New(cfg.Render)
-	g := gitstore.New(cfg.Repo.Path)
+	g, err := gitstore.Open(cfg.Repo.Path)
+	if err != nil {
+		log.Fatalf("git: %v", err)
+	}
+	if p.PushRemote != "" {
+		if err := g.EnsureRemote(cfg.Repo.PushRemote, p.PushRemote); err != nil {
+			log.Printf("git: ensure remote: %v (continuing without push)", err)
+		}
+		g.SetPushToken(p.PushToken)
+	}
 	c := comments.New(dbConn)
 	idx := search.New(dbConn, g)
 	ss := search.NewStore(dbConn)
