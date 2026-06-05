@@ -19,6 +19,7 @@
   import ChatLaunch from "carbon-icons-svelte/lib/ChatLaunch.svelte";
   import AddComment from "carbon-icons-svelte/lib/AddComment.svelte";
   import SearchIcon from "carbon-icons-svelte/lib/Search.svelte";
+  import Settings from "carbon-icons-svelte/lib/Settings.svelte";
 
   import ArchiveTree from "../components/ArchiveTree.svelte";
   import DocumentView from "./DocumentView.svelte";
@@ -27,7 +28,10 @@
   import LocaleToggle from "../components/LocaleToggle.svelte";
   import SearchOverlay from "../components/SearchOverlay.svelte";
   import VersionMenu from "../components/VersionMenu.svelte";
+  import PreferencesModal from "../components/PreferencesModal.svelte";
   import { currentDoc, navigateToDoc } from "../lib/router";
+  import { getPrefs } from "../lib/prefs-api";
+  import { applyFont } from "../lib/fonts";
   import {
     doc as docStore,
     editing,
@@ -52,6 +56,7 @@
   let addCommentReplyTo: number | null = null;
   let addCommentReplyAuthor = "";
   let searchOpen = false;
+  let prefsOpen = false;
 
   // Replies start from the parent comment's anchor — same line + same
   // captured text — so they re-anchor along with the conversation.
@@ -71,8 +76,24 @@
     }
   }
 
+  // The native menu (File → Preferences…, View → Search) dispatches these
+  // DOM events into the webview.
+  function onOpenPrefs() {
+    prefsOpen = true;
+  }
+  function onOpenSearch() {
+    searchOpen = true;
+  }
+
   onMount(() => {
     window.addEventListener("keydown", onKeydown);
+    window.addEventListener("steelpage:open-prefs", onOpenPrefs);
+    window.addEventListener("steelpage:open-search", onOpenSearch);
+
+    // Apply the persisted font preference on startup.
+    getPrefs()
+      .then((p) => applyFont(p.font || null))
+      .catch(() => applyFont(null));
 
     setOnMarkerClick((line: number) => {
       showComments = true;
@@ -89,6 +110,8 @@
 
     return () => {
       window.removeEventListener("keydown", onKeydown);
+      window.removeEventListener("steelpage:open-prefs", onOpenPrefs);
+      window.removeEventListener("steelpage:open-search", onOpenSearch);
       setOnMarkerClick(null);
       setOnEmptyGutterClick(null);
     };
@@ -175,6 +198,13 @@
       on:click={() => (searchOpen = true)}
     />
 
+    <HeaderGlobalAction
+      iconDescription={$_("preferences.heading")}
+      icon={Settings}
+      isActive={prefsOpen}
+      on:click={() => (prefsOpen = true)}
+    />
+
     <LocaleToggle />
   </HeaderUtilities>
 </Header>
@@ -251,6 +281,8 @@
 {/if}
 
 <SearchOverlay bind:open={searchOpen} />
+
+<PreferencesModal bind:open={prefsOpen} />
 
 <style>
   .bread {

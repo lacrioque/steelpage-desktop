@@ -119,5 +119,20 @@
     "empty_error": "Comment can't be empty",
     "no_identity": "Set a display name first",
     "failed": "Failed to add comment"
+  },
+  "preferences": {
+    "heading": "Preferences",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "error": "Could not save preferences",
+    "content_dir": "Archive folder",
+    "content_dir_hint": "Change it via File → Open Archive…; takes effect on next launch.",
+    "font": "Document font",
+    "push_remote": "Backup remote (optional)",
+    "push_remote_hint": "HTTPS git URL. Saves are pushed there automatically; takes effect on next launch.",
+    "push_token": "Access token",
+    "push_token_set": "(a token is stored — type to replace)",
+    "push_token_hint": "Personal access token with write access to the remote. Stored locally in prefs.json."
   }
 }

@@ -36,6 +36,10 @@ func New(a *api.API, dist fs.FS) http.Handler {
 		r.Post("/docs-copy", a.CopyDoc)
 		r.Post("/comments", a.CreateComment)
 		r.Patch("/comments/{id}", a.UpdateComment)
+
+		// Preferences (prefs.json).
+		r.Get("/prefs", a.GetPrefs)
+		r.Patch("/prefs", a.PatchPrefs)
 	})
 
 	staticHandler := static.Handler(dist)

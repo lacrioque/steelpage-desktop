@@ -119,5 +119,20 @@
     "empty_error": "Kommentar darf nicht leer sein",
     "no_identity": "Bitte zuerst einen Anzeigenamen festlegen",
     "failed": "Kommentar konnte nicht erstellt werden"
+  },
+  "preferences": {
+    "heading": "Einstellungen",
+    "save": "Speichern",
+    "saving": "Speichern…",
+    "cancel": "Abbrechen",
+    "error": "Einstellungen konnten nicht gespeichert werden",
+    "content_dir": "Archivordner",
+    "content_dir_hint": "Änderbar über Datei → Archiv öffnen…; wird beim nächsten Start wirksam.",
+    "font": "Dokumentschrift",
+    "push_remote": "Backup-Remote (optional)",
+    "push_remote_hint": "HTTPS-Git-URL. Gespeicherte Änderungen werden automatisch dorthin gepusht; wird beim nächsten Start wirksam.",
+    "push_token": "Zugriffstoken",
+    "push_token_set": "(ein Token ist gespeichert — zum Ersetzen tippen)",
+    "push_token_hint": "Personal Access Token mit Schreibzugriff auf das Remote. Wird lokal in prefs.json gespeichert."
   }
 }

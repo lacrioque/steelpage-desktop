@@ -118,9 +118,7 @@ func main() {
 		},
 	})
 
-	app.Menu.Set(buildMenu(app))
-
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:              "Steelpage",
 		URL:                url,
 		Width:              1280,
@@ -129,6 +127,8 @@ func main() {
 		MinHeight:          400,
 		UseApplicationMenu: true,
 	})
+
+	app.Menu.Set(buildMenu(app, win))
 
 	// Drain in-flight saves and release the SQLite WAL before the process
 	// exits so no -wal/-shm files are left locked behind (acceptance #6).
