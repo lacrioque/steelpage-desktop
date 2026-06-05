@@ -53,18 +53,32 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
-
 ```bash
-# Example:
-# npm install
-# npm test
+make build      # SPA build + embed + Go binary (./steelpage-desktop)
+make test       # go test ./... + svelte-check
+make dev-backend   # headless loopback API on 127.0.0.1:18080
+make dev-frontend  # Vite HMR on :5173, proxies /api + /docs to :18080
 ```
+
+Linux build needs `gtk4-devel` + `webkitgtk6.0-devel` (Wails v3 webview).
+Frontend type-check: `cd frontend && npm run check`.
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Single-user desktop app (Wails v3 webview → loopback chi HTTP API).
+Markdown archive in `~/Documents/Steelpage` versioned by an embedded
+go-git engine (`internal/gitstore`, no git binary needed). SQLite
+(`internal/db`, migrations 001/002/008) holds comments + FTS5 search
+index. Prefs live in `prefs.json` at the platform config dir
+(`internal/prefs`); `internal/config.FromPrefs` synthesizes the runtime
+config. Identity is the constant local user (`internal/localidentity`,
+id=1). Entry point: `cmd/steelpage-desktop` (`-headless`, `-bind` dev
+flags). Plan + decision log: `docs/plans/steelpage-desktop.md`.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- No auth/multi-user/email code — this fork deliberately deleted it;
+  re-derive from upstream `lacrioque/steelpage` if ever needed.
+- Remote git interaction is push-only and opt-in (no pull/rebase).
+- The loopback server must never bind a non-127.0.0.1 address.
+- Angular commit conventions (see user's global rules).

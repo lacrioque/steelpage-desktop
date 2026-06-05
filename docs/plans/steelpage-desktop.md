@@ -52,21 +52,25 @@ request behind them.
 | Git interface | **Start with `git` CLI shim** (existing code), migrate to **`go-git`** package-by-package | CLI works on every dev machine; go-git is the real long-term play because users won't always have git installed. |
 | Concurrency model | Single user, single window, single process | No sessions, no locking ceremonies. |
 
-### Decisions to resolve in the first session
+### Decisions resolved (2026-06-05, first session)
 
-These are the things the new session has to answer before it starts deleting
-code:
-
-1. **Wails v2 vs v3** — v3 is more ergonomic (cleaner bindings, better
-   menus); v2 is more battle-tested. Read the v3 status page before
-   choosing.
-2. **Keep `internal/api` HTTP router or replace with Wails bindings** —
-   recommended: keep it for v1 (the SPA already calls `/api/*`, nothing
-   needs to change), but plan a v2 migration to Wails bindings for the
-   "native" feel (no localhost port, no JSON marshalling overhead).
-3. **What to do with the optional remote push** — keep it (operator can add
-   a remote and push their archive to GitHub) or drop it? Recommend
-   **keep**, opt-in per config.
+1. **Wails v3** — pinned at `v3.0.0-alpha.98`. API verified against the
+   module source (`application.New`, `app.Window.NewWithOptions`,
+   `app.OnShutdown`, `app.Menu.Set`). Linux backend builds against
+   gtk4 + webkitgtk-6.0 (`gtk4-devel webkitgtk6.0-devel` on Fedora).
+2. **Loopback HTTP kept for v1** — `internal/server.StartLoopback` binds
+   `127.0.0.1:0`, webview points at the returned URL. Wails bindings
+   remain a possible v2 migration.
+3. **Remote push: kept, opt-in, push-only** — `prefs.json` stores
+   `push_remote` (HTTPS URL) + `push_token`; saves fan out via go-git
+   `Push` in the background. Pull/rebase deleted entirely.
+4. **go-git from day 1** (not the phased CLI plan below) — `internal/gitstore`
+   was rewritten on `go-git/v5@v5.19.1` in the first session; there is no
+   `exec.Command("git")` anywhere. v6 was still alpha at decision time.
+5. **Comments, search, history: kept.** **i18n: kept with BOTH en + de**
+   (trimmed of auth namespaces).
+6. **Font preference** moved from the users table (migration 010, deleted)
+   into `prefs.json`, edited in the SPA Preferences modal.
 
 ---
 
