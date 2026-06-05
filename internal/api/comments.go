@@ -31,9 +31,6 @@ func (a *API) ListComments(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "path query parameter required")
 		return
 	}
-	if _, status := a.authorize(r, path, "read"); !denyOrContinue(w, status) {
-		return
-	}
 	list, err := a.Comments.ListByPath(path)
 	if err != nil {
 		logError("list comments", err)
@@ -52,15 +49,6 @@ func (a *API) CreateComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	u, status := a.authorize(r, req.Path, "comment")
-	if !denyOrContinue(w, status) {
-		return
-	}
-	if u == nil {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
 	sha, _ := a.Git.HeadSHA(req.Path)
 	c, err := a.Comments.Create(comments.CreateInput{
 		Path:        req.Path,
@@ -68,7 +56,7 @@ func (a *API) CreateComment(w http.ResponseWriter, r *http.Request) {
 		LineEnd:     req.LineEnd,
 		AnchorText:  req.AnchorText,
 		DocumentSHA: sha,
-		AuthorID:    u.ID,
+		AuthorID:    a.currentUser().ID,
 		Body:        req.Body,
 		ReplyTo:     req.ReplyTo,
 	})
@@ -92,12 +80,8 @@ func (a *API) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := a.Comments.GetByID(id)
-	if err != nil {
+	if _, err := a.Comments.GetByID(id); err != nil {
 		writeError(w, http.StatusNotFound, "comment not found")
-		return
-	}
-	if _, status := a.authorize(r, existing.Path, "comment"); !denyOrContinue(w, status) {
 		return
 	}
 

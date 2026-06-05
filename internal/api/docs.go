@@ -38,10 +38,6 @@ type putDocRequest struct {
 func (a *API) GetDoc(w http.ResponseWriter, r *http.Request) {
 	docPath := chi.URLParam(r, "*")
 
-	if _, status := a.authorize(r, docPath, "read"); !denyOrContinue(w, status) {
-		return
-	}
-
 	ref := r.URL.Query().Get("ref")
 	var (
 		raw []byte
@@ -77,11 +73,6 @@ func (a *API) GetDoc(w http.ResponseWriter, r *http.Request) {
 func (a *API) PutDoc(w http.ResponseWriter, r *http.Request) {
 	docPath := chi.URLParam(r, "*")
 
-	user, status := a.authorize(r, docPath, "write")
-	if !denyOrContinue(w, status) {
-		return
-	}
-
 	var req putDocRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -92,15 +83,7 @@ func (a *API) PutDoc(w http.ResponseWriter, r *http.Request) {
 	lk.Lock()
 	defer lk.Unlock()
 
-	live := a.cfg()
-	authorName := live.Repo.CommitAuthorName
-	authorEmail := live.Repo.CommitAuthorEmail
-	if user != nil {
-		authorName = user.DisplayName
-		if user.Email != nil && *user.Email != "" {
-			authorEmail = *user.Email
-		}
-	}
+	authorName, authorEmail := authorFor(a.currentUser())
 
 	fm := map[string]any{}
 	if existing, err := docs.Load(a.Cfg.Repo.Path, docPath); err == nil {
@@ -135,22 +118,8 @@ func (a *API) PutDoc(w http.ResponseWriter, r *http.Request) {
 
 	// Audit log lives in git: the commit above already records who saved
 	// what (display name + email). When auto_push is enabled we also fan
-	// the commit out to the configured remote in the background. Sync
-	// runs `pull --rebase` first so concurrent remote changes don't get
-	// stomped; conflicts halt the push and surface in /admin → Settings.
-	if live.Repo.AutoPush && a.Git.HasRemote(live.Repo.PushRemote) {
-		git := a.Git
-		remote := live.Repo.PushRemote
-		go func() {
-			result := git.Sync(remote)
-			if result.Error != "" {
-				logError("git sync", fmt.Errorf("%s", result.Error))
-			}
-			if result.Conflict {
-				logError("git sync conflict", fmt.Errorf("conflict on %v", result.Files))
-			}
-		}()
-	}
+	// the commit out to the configured remote in the background.
+	a.maybePush()
 
 	if err := a.Comments.MarkPath(docPath, newSHA, splitLines(req.Markdown)); err != nil {
 		logError("reanchor comments", err)
@@ -171,9 +140,6 @@ func (a *API) PutDoc(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) BotReady(w http.ResponseWriter, r *http.Request) {
 	docPath := chi.URLParam(r, "*")
-	if _, status := a.authorize(r, docPath, "read"); !denyOrContinue(w, status) {
-		return
-	}
 	raw, err := docs.Load(a.Cfg.Repo.Path, docPath)
 	if err != nil {
 		writeError(w, httpStatusForDocErr(err), err.Error())

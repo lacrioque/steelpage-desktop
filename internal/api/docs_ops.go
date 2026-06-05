@@ -2,27 +2,20 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/markusfluer/steelpage-desktop/internal/config"
 	"github.com/markusfluer/steelpage-desktop/internal/docs"
 	"github.com/markusfluer/steelpage-desktop/internal/frontmatter"
-	"github.com/markusfluer/steelpage-desktop/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/localidentity"
 )
 
 // DeleteDoc removes the document file, drops its comments + index entries,
 // and commits the deletion.
 func (a *API) DeleteDoc(w http.ResponseWriter, r *http.Request) {
 	docPath := chi.URLParam(r, "*")
-
-	user, status := a.authorize(r, docPath, "write")
-	if !denyOrContinue(w, status) {
-		return
-	}
 
 	lk := a.pathLock(docPath)
 	lk.Lock()
@@ -37,7 +30,7 @@ func (a *API) DeleteDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorName, authorEmail := authorFor(user, a.cfg())
+	authorName, authorEmail := authorFor(a.currentUser())
 	if err := a.Git.RemoveFile(docPath, "docs: delete "+docPath, authorName, authorEmail); err != nil {
 		logError("git rm", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete file")
@@ -49,7 +42,7 @@ func (a *API) DeleteDoc(w http.ResponseWriter, r *http.Request) {
 	if err := a.Indexer.Remove(docPath); err != nil {
 		logError("indexer remove", err)
 	}
-	a.maybeAutoSync()
+	a.maybePush()
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -69,14 +62,6 @@ func (a *API) MoveDoc(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.From == "" || req.To == "" || req.From == req.To {
 		writeError(w, http.StatusBadRequest, "from and to must be non-empty and different")
-		return
-	}
-
-	if _, status := a.authorize(r, req.From, "write"); !denyOrContinue(w, status) {
-		return
-	}
-	user, status := a.authorize(r, req.To, "write")
-	if !denyOrContinue(w, status) {
 		return
 	}
 
@@ -112,7 +97,7 @@ func (a *API) MoveDoc(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = fromAbs
 
-	authorName, authorEmail := authorFor(user, a.cfg())
+	authorName, authorEmail := authorFor(a.currentUser())
 	msg := "docs: move " + req.From + " -> " + req.To
 	newSHA, err := a.Git.MoveFile(req.From, req.To, msg, authorName, authorEmail)
 	if err != nil {
@@ -132,7 +117,7 @@ func (a *API) MoveDoc(w http.ResponseWriter, r *http.Request) {
 		_, body, _ := frontmatter.Split(raw)
 		_ = a.Indexer.IndexOne(a.Cfg.Repo.Path, req.To, string(body))
 	}
-	a.maybeAutoSync()
+	a.maybePush()
 
 	resp, _ := a.buildResponseAfter(req.To, newSHA)
 	writeJSON(w, http.StatusOK, resp)
@@ -153,14 +138,6 @@ func (a *API) CopyDoc(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.From == "" || req.To == "" || req.From == req.To {
 		writeError(w, http.StatusBadRequest, "from and to must be non-empty and different")
-		return
-	}
-
-	if _, status := a.authorize(r, req.From, "read"); !denyOrContinue(w, status) {
-		return
-	}
-	user, status := a.authorize(r, req.To, "write")
-	if !denyOrContinue(w, status) {
 		return
 	}
 
@@ -186,7 +163,7 @@ func (a *API) CopyDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorName, authorEmail := authorFor(user, a.cfg())
+	authorName, authorEmail := authorFor(a.currentUser())
 
 	// Strip source frontmatter, give the copy a fresh one.
 	_, body, _ := frontmatter.Split(srcRaw)
@@ -213,7 +190,7 @@ func (a *API) CopyDoc(w http.ResponseWriter, r *http.Request) {
 	if err := a.Indexer.IndexOne(a.Cfg.Repo.Path, req.To, string(body)); err != nil {
 		logError("indexer on copy", err)
 	}
-	a.maybeAutoSync()
+	a.maybePush()
 
 	resp, _ := a.buildResponseAfter(req.To, newSHA)
 	writeJSON(w, http.StatusCreated, resp)
@@ -236,41 +213,27 @@ func (a *API) buildResponseAfter(docPath, sha string) (*DocumentResponse, error)
 	return resp, nil
 }
 
-// authorFor returns the (name, email) to record on git operations. Prefers
-// the signed-in user's display_name + email; falls back to the configured
-// commit author when no user is in context.
-func authorFor(user *users.User, cfg *config.Config) (string, string) {
-	name := cfg.Repo.CommitAuthorName
-	email := cfg.Repo.CommitAuthorEmail
-	if user == nil {
-		return name, email
-	}
-	name = user.DisplayName
-	if user.Email != nil && *user.Email != "" {
-		email = *user.Email
-	}
-	return name, email
+// authorFor returns the (name, email) to record on git operations — always
+// the local OS user in the desktop build.
+func authorFor(id localidentity.Identity) (string, string) {
+	return id.DisplayName, id.Email
 }
 
-// maybeAutoSync mirrors the auto-push branch from PutDoc so move/copy/delete
-// also fan their commits out to the remote when enabled.
-func (a *API) maybeAutoSync() {
-	live := a.cfg()
-	if !live.Repo.AutoPush {
+// maybePush fans the latest commits out to the configured remote in the
+// background when auto_push is enabled (opt-in, push-only — no pull/rebase
+// in the desktop build).
+func (a *API) maybePush() {
+	if !a.Cfg.Repo.AutoPush {
 		return
 	}
-	if !a.Git.HasRemote(live.Repo.PushRemote) {
+	if !a.Git.HasRemote(a.Cfg.Repo.PushRemote) {
 		return
 	}
 	git := a.Git
-	remote := live.Repo.PushRemote
+	remote := a.Cfg.Repo.PushRemote
 	go func() {
-		result := git.Sync(remote)
-		if result.Error != "" {
-			logError("git sync", fmt.Errorf("%s", result.Error))
-		}
-		if result.Conflict {
-			logError("git sync conflict", fmt.Errorf("conflict on %v", result.Files))
+		if err := git.Push(remote); err != nil {
+			logError("git push", err)
 		}
 	}()
 }

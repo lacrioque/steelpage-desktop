@@ -20,14 +20,6 @@ func (a *API) Render(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	// Preview rendering is gated by read permission on the target path —
-	// otherwise unauthorised users could render arbitrary content with our
-	// trusted renderer / sanitizer combo.
-	if req.Path != "" {
-		if _, status := a.authorize(r, req.Path, "read"); !denyOrContinue(w, status) {
-			return
-		}
-	}
 	html, err := a.Renderer.Render([]byte(req.Markdown))
 	if err != nil {
 		logError("render preview", err)

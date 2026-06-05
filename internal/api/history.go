@@ -13,9 +13,6 @@ import (
 // read-permission gate as GetDoc.
 func (a *API) GetDocHistory(w http.ResponseWriter, r *http.Request) {
 	docPath := chi.URLParam(r, "*")
-	if _, status := a.authorize(r, docPath, "read"); !denyOrContinue(w, status) {
-		return
-	}
 
 	limit := 10
 	if raw := r.URL.Query().Get("limit"); raw != "" {
