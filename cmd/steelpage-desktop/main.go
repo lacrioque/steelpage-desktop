@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"io/fs"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	steelpage "github.com/markusfluer/steelpage-desktop"
 	"github.com/markusfluer/steelpage-desktop/internal/api"
@@ -21,8 +27,10 @@ import (
 )
 
 func main() {
-	// Dev override: -bind 127.0.0.1:18080 gives the Vite proxy a fixed port.
+	// Dev overrides: -bind gives the Vite proxy a fixed port, -headless
+	// runs the loopback API without a window (CI / backend work).
 	bind := flag.String("bind", "", "override loopback bind address (dev only)")
+	headless := flag.Bool("headless", false, "run the API without a window (dev only)")
 	flag.Parse()
 
 	p, err := prefs.Load()
@@ -90,12 +98,61 @@ func main() {
 	if err != nil {
 		log.Fatalf("loopback: %v", err)
 	}
-	defer func() { _ = shutdown(nil) }()
 
 	log.Printf("Steelpage at %s (content: %s, db: %s)", url, cfg.Repo.Path, cfg.DB.Path)
 
-	// TODO(M7): replace with the Wails v3 application + webview window.
-	select {}
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	if *headless {
+		<-sigCh
+		_ = shutdown(context.Background())
+		return
+	}
+
+	app := application.New(application.Options{
+		Name:        "Steelpage",
+		Description: "Personal Markdown archive",
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
+	})
+
+	app.Menu.Set(buildMenu(app))
+
+	app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:              "Steelpage",
+		URL:                url,
+		Width:              1280,
+		Height:             800,
+		MinWidth:           700,
+		MinHeight:          400,
+		UseApplicationMenu: true,
+	})
+
+	// Drain in-flight saves and release the SQLite WAL before the process
+	// exits so no -wal/-shm files are left locked behind (acceptance #6).
+	app.OnShutdown(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdown(ctx); err != nil {
+			log.Printf("loopback shutdown: %v", err)
+		}
+		if err := dbConn.Close(); err != nil {
+			log.Printf("db close: %v", err)
+		}
+	})
+
+	// Route Ctrl-C / SIGTERM through the same shutdown path as closing
+	// the window so the DB always closes cleanly.
+	go func() {
+		<-sigCh
+		app.Quit()
+	}()
+
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // syncLocalUser keeps the seeded users row in step with the OS user so
