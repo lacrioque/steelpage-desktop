@@ -2,7 +2,7 @@ import { writable, derived } from "svelte/store";
 
 const DEFAULT_DOC = "README.md";
 
-export type RouteKind = "doc" | "login" | "admin" | "account" | "forgot" | "reset" | "verify";
+export type RouteKind = "doc";
 
 function pathFromLocation(): string {
   return new URL(window.location.href).pathname;
@@ -20,15 +20,8 @@ export const currentRef = derived(search, ($s) => {
   return params.get("ref");
 });
 
-export const routeKind = derived<typeof path, RouteKind>(path, ($p) => {
-  if ($p === "/login") return "login";
-  if ($p === "/forgot") return "forgot";
-  if ($p === "/reset") return "reset";
-  if ($p === "/verify") return "verify";
-  if ($p === "/admin" || $p.startsWith("/admin/")) return "admin";
-  if ($p === "/account" || $p.startsWith("/account/")) return "account";
-  return "doc";
-});
+// Desktop build: every route renders the doc view.
+export const routeKind = derived<typeof path, RouteKind>(path, () => "doc");
 
 export const currentDoc = derived(path, ($p) => {
   if ($p.startsWith("/docs/")) {
@@ -62,26 +55,6 @@ export function navigateToRef(ref: string | null): void {
 export function navigateToDoc(docPath: string): void {
   const clean = docPath.replace(/^\/+/, "");
   navigate(`/docs/${clean.split("/").map(encodeURIComponent).join("/")}`);
-}
-
-export function navigateToLogin(): void {
-  navigate("/login");
-}
-
-export function navigateToAdmin(): void {
-  navigate("/admin");
-}
-
-export function navigateToAccount(): void {
-  navigate("/account");
-}
-
-export function navigateToForgot(): void {
-  navigate("/forgot");
-}
-
-export function navigateToReset(): void {
-  navigate("/reset");
 }
 
 window.addEventListener("popstate", () => {
