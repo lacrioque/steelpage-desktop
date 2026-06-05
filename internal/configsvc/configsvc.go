@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/markusfluer/steelpage/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
 )
 
 var (

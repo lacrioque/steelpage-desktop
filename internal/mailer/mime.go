@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/markusfluer/steelpage/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
 )
 
 // buildMIME assembles either a text/plain message or a multipart/alternative

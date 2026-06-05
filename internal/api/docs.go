@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/markusfluer/steelpage/internal/comments"
-	"github.com/markusfluer/steelpage/internal/docs"
-	"github.com/markusfluer/steelpage/internal/frontmatter"
+	"github.com/markusfluer/steelpage-desktop/internal/comments"
+	"github.com/markusfluer/steelpage-desktop/internal/docs"
+	"github.com/markusfluer/steelpage-desktop/internal/frontmatter"
 )
 
 func splitLines(body string) []string {

@@ -3,10 +3,10 @@ package api
 import (
 	"net/http"
 
-	"github.com/markusfluer/steelpage/internal/middleware"
-	"github.com/markusfluer/steelpage/internal/permissions"
-	"github.com/markusfluer/steelpage/internal/tokens"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/permissions"
+	"github.com/markusfluer/steelpage-desktop/internal/tokens"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 // authorize decides whether the request can perform `action` on `path`.

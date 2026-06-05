@@ -8,10 +8,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/markusfluer/steelpage/internal/config"
-	"github.com/markusfluer/steelpage/internal/docs"
-	"github.com/markusfluer/steelpage/internal/frontmatter"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/docs"
+	"github.com/markusfluer/steelpage-desktop/internal/frontmatter"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 // DeleteDoc removes the document file, drops its comments + index entries,

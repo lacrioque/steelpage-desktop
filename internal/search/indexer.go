@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/markusfluer/steelpage/internal/frontmatter"
-	"github.com/markusfluer/steelpage/internal/gitstore"
+	"github.com/markusfluer/steelpage-desktop/internal/frontmatter"
+	"github.com/markusfluer/steelpage-desktop/internal/gitstore"
 )
 
 type Indexer struct {

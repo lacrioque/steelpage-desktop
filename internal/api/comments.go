@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/markusfluer/steelpage/internal/comments"
+	"github.com/markusfluer/steelpage-desktop/internal/comments"
 )
 
 type createCommentRequest struct {

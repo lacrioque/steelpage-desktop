@@ -1,4 +1,4 @@
-module github.com/markusfluer/steelpage
+module github.com/markusfluer/steelpage-desktop
 
 go 1.26.1
 

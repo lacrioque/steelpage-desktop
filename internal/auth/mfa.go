@@ -11,8 +11,8 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
-	"github.com/markusfluer/steelpage/internal/middleware"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 func logTotpError(prefix string, err error) {

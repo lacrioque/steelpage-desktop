@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/markusfluer/steelpage/internal/groups"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/groups"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 type adminUser struct {

@@ -9,19 +9,19 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
-	"github.com/markusfluer/steelpage/internal/auth"
-	"github.com/markusfluer/steelpage/internal/comments"
-	"github.com/markusfluer/steelpage/internal/config"
-	"github.com/markusfluer/steelpage/internal/configsvc"
-	"github.com/markusfluer/steelpage/internal/docs"
-	"github.com/markusfluer/steelpage/internal/gitstore"
-	"github.com/markusfluer/steelpage/internal/groups"
-	"github.com/markusfluer/steelpage/internal/mailer"
-	"github.com/markusfluer/steelpage/internal/permissions"
-	"github.com/markusfluer/steelpage/internal/render"
-	"github.com/markusfluer/steelpage/internal/search"
-	"github.com/markusfluer/steelpage/internal/tokens"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/auth"
+	"github.com/markusfluer/steelpage-desktop/internal/comments"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/configsvc"
+	"github.com/markusfluer/steelpage-desktop/internal/docs"
+	"github.com/markusfluer/steelpage-desktop/internal/gitstore"
+	"github.com/markusfluer/steelpage-desktop/internal/groups"
+	"github.com/markusfluer/steelpage-desktop/internal/mailer"
+	"github.com/markusfluer/steelpage-desktop/internal/permissions"
+	"github.com/markusfluer/steelpage-desktop/internal/render"
+	"github.com/markusfluer/steelpage-desktop/internal/search"
+	"github.com/markusfluer/steelpage-desktop/internal/tokens"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 type API struct {

@@ -8,13 +8,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/markusfluer/steelpage/internal/api"
-	"github.com/markusfluer/steelpage/internal/config"
-	"github.com/markusfluer/steelpage/internal/groups"
-	"github.com/markusfluer/steelpage/internal/middleware"
-	"github.com/markusfluer/steelpage/internal/static"
-	"github.com/markusfluer/steelpage/internal/tokens"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/api"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/groups"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/static"
+	"github.com/markusfluer/steelpage-desktop/internal/tokens"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 func New(

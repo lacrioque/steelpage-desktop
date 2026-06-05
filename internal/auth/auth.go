@@ -13,11 +13,11 @@ import (
 	"github.com/markbates/goth/gothic"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/markusfluer/steelpage/internal/config"
-	"github.com/markusfluer/steelpage/internal/configsvc"
-	"github.com/markusfluer/steelpage/internal/mailer"
-	"github.com/markusfluer/steelpage/internal/middleware"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/configsvc"
+	"github.com/markusfluer/steelpage-desktop/internal/mailer"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 const (

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/markusfluer/steelpage/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
 )
 
 // Field describes one editable (or read-only) entry in the live-config UI.

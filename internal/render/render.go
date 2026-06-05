@@ -6,7 +6,7 @@ import (
 	"html"
 	"regexp"
 
-	"github.com/markusfluer/steelpage/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"

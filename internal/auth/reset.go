@@ -13,8 +13,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/markusfluer/steelpage/internal/mailer"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/mailer"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 // ForgotPassword handles POST /api/auth/forgot. The response is always 204

@@ -8,9 +8,9 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
-	"github.com/markusfluer/steelpage/internal/groups"
-	"github.com/markusfluer/steelpage/internal/tokens"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/groups"
+	"github.com/markusfluer/steelpage-desktop/internal/tokens"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 type ctxKey int

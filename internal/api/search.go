@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/markusfluer/steelpage/internal/middleware"
-	"github.com/markusfluer/steelpage/internal/search"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/search"
 )
 
 func (a *API) Search(w http.ResponseWriter, r *http.Request) {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/markusfluer/steelpage/internal/config"
-	"github.com/markusfluer/steelpage/internal/configsvc"
-	"github.com/markusfluer/steelpage/internal/db"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/configsvc"
+	"github.com/markusfluer/steelpage-desktop/internal/db"
 )
 
 func newService(t *testing.T) *configsvc.Service {

@@ -3,10 +3,10 @@ package api
 import (
 	"net/http"
 
-	"github.com/markusfluer/steelpage/internal/docs"
-	"github.com/markusfluer/steelpage/internal/middleware"
-	"github.com/markusfluer/steelpage/internal/permissions"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/docs"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/permissions"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 func (a *API) Tree(w http.ResponseWriter, r *http.Request) {

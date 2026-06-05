@@ -8,8 +8,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/markusfluer/steelpage/internal/configsvc"
-	"github.com/markusfluer/steelpage/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/configsvc"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
 )
 
 // AdminConfigSchema returns the editable-fields manifest. The frontend uses

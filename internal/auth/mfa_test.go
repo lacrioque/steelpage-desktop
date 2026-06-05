@@ -22,14 +22,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pquerna/otp/totp"
 
-	"github.com/markusfluer/steelpage/internal/auth"
-	"github.com/markusfluer/steelpage/internal/config"
-	"github.com/markusfluer/steelpage/internal/configsvc"
-	"github.com/markusfluer/steelpage/internal/db"
-	"github.com/markusfluer/steelpage/internal/groups"
-	"github.com/markusfluer/steelpage/internal/mailer"
-	"github.com/markusfluer/steelpage/internal/middleware"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/auth"
+	"github.com/markusfluer/steelpage-desktop/internal/config"
+	"github.com/markusfluer/steelpage-desktop/internal/configsvc"
+	"github.com/markusfluer/steelpage-desktop/internal/db"
+	"github.com/markusfluer/steelpage-desktop/internal/groups"
+	"github.com/markusfluer/steelpage-desktop/internal/mailer"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 func setupAuthServer(t *testing.T) (*httptest.Server, *http.Client) {

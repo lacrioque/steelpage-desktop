@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/markusfluer/steelpage/internal/mailer"
-	"github.com/markusfluer/steelpage/internal/middleware"
+	"github.com/markusfluer/steelpage-desktop/internal/mailer"
+	"github.com/markusfluer/steelpage-desktop/internal/middleware"
 )
 
 type mailerStatusResponse struct {

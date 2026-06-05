@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/markusfluer/steelpage/internal/permissions"
+	"github.com/markusfluer/steelpage-desktop/internal/permissions"
 )
 
 func (a *API) AdminListPermissions(w http.ResponseWriter, _ *http.Request) {

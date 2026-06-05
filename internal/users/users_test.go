@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/markusfluer/steelpage/internal/db"
-	"github.com/markusfluer/steelpage/internal/users"
+	"github.com/markusfluer/steelpage-desktop/internal/db"
+	"github.com/markusfluer/steelpage-desktop/internal/users"
 )
 
 // setup spins up a temp SQLite DB with all migrations applied and returns a

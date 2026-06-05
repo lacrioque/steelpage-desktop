@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/markusfluer/steelpage/internal/gitstore"
+	"github.com/markusfluer/steelpage-desktop/internal/gitstore"
 )
 
 // GetDocHistory returns the last N commits that touched the document. Same
