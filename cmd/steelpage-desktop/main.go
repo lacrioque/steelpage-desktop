@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -31,12 +33,30 @@ func main() {
 	// runs the loopback API without a window (CI / backend work).
 	bind := flag.String("bind", "", "override loopback bind address (dev only)")
 	headless := flag.Bool("headless", false, "run the API without a window (dev only)")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [flags] [archive-path]\n\n", os.Args[0])
+		fmt.Fprintln(flag.CommandLine.Output(), "Opens your Markdown archive. With archive-path, opens that")
+		fmt.Fprintln(flag.CommandLine.Output(), "folder for this launch only (your saved preference is unchanged).")
+		fmt.Fprintln(flag.CommandLine.Output(), "\nFlags:")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	p, err := prefs.Load()
 	if err != nil {
 		log.Fatalf("prefs: %v", err)
 	}
+
+	// An optional positional argument opens a specific archive for this
+	// launch only — it overrides the saved content dir without persisting.
+	if arg := flag.Arg(0); arg != "" {
+		abs, err := filepath.Abs(arg)
+		if err != nil {
+			log.Fatalf("resolve archive path %q: %v", arg, err)
+		}
+		p.ContentDir = abs
+	}
+
 	configDir, err := prefs.Dir()
 	if err != nil {
 		log.Fatalf("prefs dir: %v", err)

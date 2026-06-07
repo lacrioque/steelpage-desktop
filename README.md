@@ -67,8 +67,15 @@ sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev
 
 ```bash
 make build     # builds the SPA, embeds it, compiles ./steelpage-desktop
-./steelpage-desktop
+./steelpage-desktop                 # opens your default archive
+./steelpage-desktop ~/notes/wiki    # opens a specific archive (this launch only)
 ```
+
+The optional path argument overrides the archive location for that launch
+without changing your saved preference — handy for keeping several archives
+and opening one ad-hoc. The folder is created (and git-initialized) if it
+doesn't exist yet. To change the default permanently, use **File → Open
+Archive…**.
 
 ## Development
 
