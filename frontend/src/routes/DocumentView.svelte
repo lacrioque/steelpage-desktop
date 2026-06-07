@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, createEventDispatcher } from "svelte";
   import mermaid from "mermaid";
   import { codeMirror } from "../lib/editor";
+  import { commentMarkers } from "../lib/read-markers";
   import { currentDoc, currentRef } from "../lib/router";
   import { _ } from "../lib/i18n";
   import {
@@ -19,6 +20,8 @@
   import NotFound from "./NotFound.svelte";
   import FileActions from "../components/FileActions.svelte";
   import { me } from "../lib/identity";
+
+  const dispatch = createEventDispatcher<{ markerclick: { line: number } }>();
 
   mermaid.initialize({ startOnLoad: false });
 
@@ -74,7 +77,13 @@
       </article>
     </section>
   {:else}
-    <article class="document-body">
+    <article
+      class="document-body"
+      use:commentMarkers={{
+        html: $doc.html,
+        onMarkerClick: (line) => dispatch("markerclick", { line }),
+      }}
+    >
       {@html $doc.html}
     </article>
   {/if}

@@ -6,6 +6,16 @@ export const comments = writable<Comment[]>([]);
 export const commentsLoading = writable<boolean>(false);
 export const commentsError = writable<string>("");
 
+// requestedLine is bumped when something (a read-view marker, a jump link)
+// wants the sidebar to surface a given source line. The payload carries a
+// nonce so re-requesting the same line still triggers the sidebar effect.
+export const requestedLine = writable<{ line: number; nonce: number } | null>(null);
+
+let lineNonce = 0;
+export function requestLine(line: number): void {
+  requestedLine.set({ line, nonce: ++lineNonce });
+}
+
 let currentPath = "";
 
 export async function loadForPath(path: string): Promise<void> {

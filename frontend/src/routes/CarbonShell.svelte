@@ -32,6 +32,7 @@
   import { currentDoc, navigateToDoc } from "../lib/router";
   import { getPrefs } from "../lib/prefs-api";
   import { applyFont } from "../lib/fonts";
+  import { requestLine } from "../lib/comments-store";
   import {
     doc as docStore,
     editing,
@@ -74,6 +75,13 @@
       e.preventDefault();
       searchOpen = true;
     }
+  }
+
+  // A read-view comment marker was clicked: reveal the sidebar and ask it to
+  // surface that line's thread.
+  function onMarkerClick(event: CustomEvent<{ line: number }>) {
+    showComments = true;
+    requestLine(event.detail.line);
   }
 
   // The native menu (File → Preferences…, View → Search) dispatches these
@@ -261,7 +269,7 @@
 
   <div class="layout" class:with-comments={showComments && $docStore}>
     <section class="doc">
-      <DocumentView />
+      <DocumentView on:markerclick={onMarkerClick} />
     </section>
     {#if showComments && $docStore}
       <CommentsSidebar on:reply={startReply} />

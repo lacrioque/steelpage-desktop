@@ -8,17 +8,33 @@
   } from "carbon-components-svelte";
   import CheckmarkOutline from "carbon-icons-svelte/lib/CheckmarkOutline.svelte";
   import Reply from "carbon-icons-svelte/lib/Reply.svelte";
-  import { comments, commentsLoading, commentsError, setStatus } from "../lib/comments-store";
+  import { comments, commentsLoading, commentsError, setStatus, requestedLine } from "../lib/comments-store";
   import { editing } from "../lib/document-store";
   import { focusLine } from "../lib/editor";
   import type { Comment } from "../lib/types";
   import { me } from "../lib/identity";
   import { _ } from "../lib/i18n";
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, tick } from "svelte";
 
   const dispatch = createEventDispatcher<{ reply: { parent: Comment } }>();
 
   $: grouped = group($comments);
+
+  // When a read-view marker asks for a line, open that group and scroll it
+  // into view with a brief highlight.
+  let activeLine: number | null = null;
+  $: void revealLine($requestedLine);
+
+  async function revealLine(req: { line: number; nonce: number } | null) {
+    if (!req) return;
+    activeLine = req.line;
+    await tick();
+    const el = document.getElementById(`sp-comment-line-${req.line}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("flash");
+    setTimeout(() => el.classList.remove("flash"), 1200);
+  }
 
   // Group by line, then sort within each group so a reply lands directly
   // under its parent. Replies pointing at parents that aren't on this line
@@ -104,7 +120,11 @@
   {:else}
     <Accordion>
       {#each grouped as g (g.line)}
-        <AccordionItem title={$_("comments.line_group", { values: { line: g.line, count: g.items.length } })}>
+        <AccordionItem
+          id={`sp-comment-line-${g.line}`}
+          open={activeLine === g.line}
+          title={$_("comments.line_group", { values: { line: g.line, count: g.items.length } })}
+        >
           {#each g.items as c (c.id)}
             <article class="comment" class:reply={isReply(c)}>
               <header>
@@ -227,5 +247,17 @@
   }
   .link:hover {
     text-decoration: underline;
+  }
+  :global(.comments .bx--accordion__item.flash) {
+    animation: sp-flash 1.2s ease;
+  }
+  @keyframes sp-flash {
+    0%,
+    100% {
+      background: transparent;
+    }
+    25% {
+      background: rgba(15, 98, 254, 0.12);
+    }
   }
 </style>
