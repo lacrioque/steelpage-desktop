@@ -146,6 +146,22 @@ jobs:
           sha256sum "$OUTPUT" > "$OUTPUT.sha256"
           ls -lh "$OUTPUT"
 
+      - name: Package .deb + .rpm (linux)
+        if: matrix.name == 'linux-amd64'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          export VERSION="${GITHUB_REF_NAME#v}"
+          deb="steelpage-desktop-${GITHUB_REF_NAME}-linux-amd64.deb"
+          rpm="steelpage-desktop-${GITHUB_REF_NAME}-linux-amd64.rpm"
+          nfpm package -f build/linux/nfpm.yaml -p deb -t "$deb"
+          nfpm package -f build/linux/nfpm.yaml -p rpm -t "$rpm"
+          sha256sum "$deb" > "$deb.sha256"
+          sha256sum "$rpm" > "$rpm.sha256"
+          ls -lh "$deb" "$rpm"
+
       - name: Package .app + .dmg (macos)
         if: matrix.name == 'macos-arm64'
         shell: bash

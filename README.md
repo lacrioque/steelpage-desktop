@@ -76,6 +76,23 @@ planned follow-up.)
 
 ---
 
+## Install
+
+Pre-built artifacts are attached to each [GitHub release](https://github.com/lacrioque/steelpage-desktop/releases):
+
+| Platform | Download |
+|---|---|
+| **Linux** | `.deb` / `.rpm` (depend on system GTK4 + WebKitGTK 6.0), `.AppImage`, or raw `.tar.gz` |
+| **macOS** (Apple Silicon) | `.dmg` (ad-hoc signed — right-click → Open the first time) |
+| **Windows** | Setup `.exe` (NSIS) or raw `.zip` |
+
+The `.deb`/`.rpm` pull in the GTK/WebKit runtime via your package manager
+(`sudo apt install ./steelpage-desktop-*.deb` / `sudo dnf install ./steelpage-desktop-*.rpm`).
+macOS and Windows builds are not yet code-signed/notarized, so you'll see a
+Gatekeeper / SmartScreen prompt until that's added.
+
+---
+
 ## Build from source
 
 Requirements: Go ≥ 1.26, Node ≥ 20. On Linux additionally the webview headers:

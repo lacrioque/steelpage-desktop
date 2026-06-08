@@ -1,0 +1,37 @@
+# nfpm config for the Linux .deb / .rpm packages.
+# Built in CI from the repo root: VERSION=<x.y.z> nfpm package -f build/linux/nfpm.yaml -p deb|rpm -t <out>
+# Unlike the AppImage, these declare a runtime dependency on the system
+# GTK4 + WebKitGTK 6.0 libraries instead of bundling them.
+
+name: steelpage-desktop
+arch: amd64
+platform: linux
+version: ${VERSION}
+maintainer: "Markus Flür <fluer.markus@googlemail.com>"
+description: |
+  Steelpage Desktop — a personal, single-user Markdown archive with
+  Git history, full-text search and line-anchored comments.
+homepage: "https://github.com/lacrioque/steelpage-desktop"
+license: "AGPL-3.0"
+section: utils
+priority: optional
+
+contents:
+  - src: ./steelpage-desktop
+    dst: /usr/bin/steelpage-desktop
+    file_info:
+      mode: 0755
+  - src: ./build/linux/steelpage-desktop.desktop
+    dst: /usr/share/applications/steelpage-desktop.desktop
+  - src: ./build/appicon.png
+    dst: /usr/share/icons/hicolor/256x256/apps/steelpage-desktop.png
+
+overrides:
+  deb:
+    depends:
+      - libgtk-4-1
+      - libwebkitgtk-6.0-4
+  rpm:
+    depends:
+      - gtk4
+      - webkitgtk6.0

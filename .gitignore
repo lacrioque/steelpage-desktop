@@ -15,3 +15,7 @@ frontend/dist/
 !frontend/dist/.gitkeep
 frontend/.svelte-kit/
 
+
+# built desktop binary
+/steelpage-desktop
+/steelpage-desktop.exe
