@@ -20,7 +20,8 @@
     "locale_toggle": "Sprache wechseln",
     "save_status_saving": "Speichere …",
     "save_status_saved": "Gespeichert",
-    "save_status_failed": "Speichern fehlgeschlagen"
+    "save_status_failed": "Speichern fehlgeschlagen",
+    "server_chip": "Verbunden mit {host} — zum Verwalten klicken"
   },
   "history": {
     "loading": "Lade Verlauf …",
@@ -135,6 +136,17 @@
     "push_remote_hint": "HTTPS-Git-URL. Gespeicherte Änderungen werden automatisch dorthin gepusht; wird beim nächsten Start wirksam.",
     "push_token": "Zugriffstoken",
     "push_token_set": "(ein Token ist gespeichert — zum Ersetzen tippen)",
-    "push_token_hint": "Personal Access Token mit Schreibzugriff auf das Remote. Wird lokal in prefs.json gespeichert."
+    "push_token_hint": "Personal Access Token mit Schreibzugriff auf das Remote. Wird lokal in prefs.json gespeichert.",
+    "connection": "Verbindung",
+    "connection_local": "Lokales Archiv",
+    "connection_server": "Steelpage-Server",
+    "connection_hint": "Ein Verbindungswechsel wird beim nächsten Start wirksam.",
+    "server_url": "Server-URL",
+    "server_token": "Zugriffstoken",
+    "server_token_set": "(ein Token ist gespeichert — zum Ersetzen tippen)",
+    "server_token_hint": "Ein API-Token von der Seite Konto → Tokens des Servers (beginnt mit spt_). Wird lokal gespeichert.",
+    "test": "Verbindung testen",
+    "testing": "Teste…",
+    "test_ok": "verbunden als {name}"
   }
 }

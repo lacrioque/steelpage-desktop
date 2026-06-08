@@ -30,7 +30,7 @@
   import VersionMenu from "../components/VersionMenu.svelte";
   import PreferencesModal from "../components/PreferencesModal.svelte";
   import { currentDoc, navigateToDoc } from "../lib/router";
-  import { getPrefs } from "../lib/prefs-api";
+  import { getPrefs, getConnection, type Connection } from "../lib/prefs-api";
   import { applyFont } from "../lib/fonts";
   import { requestLine } from "../lib/comments-store";
   import { marginFits } from "../lib/viewport";
@@ -59,6 +59,17 @@
   let addCommentReplyAuthor = "";
   let searchOpen = false;
   let prefsOpen = false;
+  let connection: Connection | null = null;
+
+  // Host shown in the server-mode chip (origin without scheme).
+  function serverHost(url: string | undefined): string {
+    if (!url) return "";
+    try {
+      return new URL(url).host;
+    } catch {
+      return url;
+    }
+  }
 
   // Read view with room → anchored margin (inside DocumentView); edit view or
   // a narrow window → the accordion fallback.
@@ -118,6 +129,11 @@
     getPrefs()
       .then((p) => applyFont(p.font || null))
       .catch(() => applyFont(null));
+
+    // Surface whether we're connected to a remote server.
+    getConnection()
+      .then((c) => (connection = c))
+      .catch(() => (connection = null));
 
     setOnMarkerClick((line: number) => {
       showComments = true;
@@ -265,6 +281,17 @@
 
     <div style="flex:1"></div>
 
+    {#if connection?.mode === "server"}
+      <button
+        class="server-chip"
+        type="button"
+        title={$_("shell.server_chip", { values: { host: serverHost(connection.server_url) } })}
+        on:click={() => (prefsOpen = true)}
+      >
+        ⛁ {serverHost(connection.server_url)}{#if connection.user} · {connection.user.display_name}{/if}
+      </button>
+    {/if}
+
     {#if $saveState === "saving"}
       <InlineLoading status="active" description={$_("shell.save_status_saving")} />
     {:else if $saveState === "saved"}
@@ -320,6 +347,21 @@
     gap: 1rem;
     padding: 0.5rem 0 1rem;
     flex-wrap: wrap;
+  }
+  .server-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border: 1px solid #c6c0b0;
+    background: #edf5ff;
+    color: #0043ce;
+    border-radius: 999px;
+    padding: 0.1rem 0.6rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .server-chip:hover {
+    background: #d0e2ff;
   }
   .layout {
     display: grid;

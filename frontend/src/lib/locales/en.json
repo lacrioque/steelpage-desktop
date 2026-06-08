@@ -20,7 +20,8 @@
     "locale_toggle": "Switch language",
     "save_status_saving": "Saving…",
     "save_status_saved": "Saved",
-    "save_status_failed": "Save failed"
+    "save_status_failed": "Save failed",
+    "server_chip": "Connected to {host} — click to manage"
   },
   "history": {
     "loading": "Loading history…",
@@ -135,6 +136,17 @@
     "push_remote_hint": "HTTPS git URL. Saves are pushed there automatically; takes effect on next launch.",
     "push_token": "Access token",
     "push_token_set": "(a token is stored — type to replace)",
-    "push_token_hint": "Personal access token with write access to the remote. Stored locally in prefs.json."
+    "push_token_hint": "Personal access token with write access to the remote. Stored locally in prefs.json.",
+    "connection": "Connection",
+    "connection_local": "Local archive",
+    "connection_server": "Steelpage server",
+    "connection_hint": "Switching connection takes effect on next launch.",
+    "server_url": "Server URL",
+    "server_token": "Access token",
+    "server_token_set": "(a token is stored — type to replace)",
+    "server_token_hint": "An API token from the server's Account → Tokens page (starts with spt_). Stored locally.",
+    "test": "Test connection",
+    "testing": "Testing…",
+    "test_ok": "connected as {name}"
   }
 }
