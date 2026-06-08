@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -49,6 +50,7 @@ func main() {
 
 	// An optional positional argument opens a specific archive for this
 	// launch only — it overrides the saved content dir without persisting.
+	// (Ignored in server mode, where the remote server is the source.)
 	if arg := flag.Arg(0); arg != "" {
 		abs, err := filepath.Abs(arg)
 		if err != nil {
@@ -64,62 +66,82 @@ func main() {
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		log.Fatalf("create config dir: %v", err)
 	}
-	if err := os.MkdirAll(p.ContentDir, 0o755); err != nil {
-		log.Fatalf("create content dir: %v", err)
-	}
-
-	cfg := config.FromPrefs(p, configDir)
-	if *bind != "" {
-		cfg.Server.Bind = *bind
-	}
-
-	dbConn, err := db.Open(cfg.DB.Path)
-	if err != nil {
-		log.Fatalf("db: %v", err)
-	}
-	defer dbConn.Close()
-	if err := db.Migrate(dbConn); err != nil {
-		log.Fatalf("db migrate: %v", err)
-	}
-	if err := syncLocalUser(dbConn); err != nil {
-		log.Printf("sync local user: %v (continuing)", err)
-	}
 
 	dist, err := fs.Sub(steelpage.FrontendFS, "frontend/dist")
 	if err != nil {
 		log.Fatalf("embed: %v", err)
 	}
 
-	r := render.New(cfg.Render)
-	g, err := gitstore.Open(cfg.Repo.Path)
-	if err != nil {
-		log.Fatalf("git: %v", err)
+	bindAddr := "127.0.0.1:0"
+	if *bind != "" {
+		bindAddr = *bind
 	}
-	if p.PushRemote != "" {
-		if err := g.EnsureRemote(cfg.Repo.PushRemote, p.PushRemote); err != nil {
-			log.Printf("git: ensure remote: %v (continuing without push)", err)
+
+	// handler + cleanup differ by mode; everything after StartLoopback is shared.
+	var handler http.Handler
+	cleanup := func() {}
+
+	if p.Remote() {
+		log.Printf("server mode: connecting to %s", p.ServerURL)
+		h, err := server.NewProxy(p.ServerURL, p.ServerToken, dist)
+		if err != nil {
+			log.Fatalf("server mode: %v", err)
 		}
-		g.SetPushToken(p.PushToken)
-	}
-	c := comments.New(dbConn)
-	idx := search.New(dbConn, g)
-	ss := search.NewStore(dbConn)
-
-	if n, err := idx.IndexAll(cfg.Repo.Path); err != nil {
-		log.Printf("search: index walk failed: %v (continuing)", err)
+		handler = h
 	} else {
-		log.Printf("search: indexed %d document(s) on startup", n)
+		if err := os.MkdirAll(p.ContentDir, 0o755); err != nil {
+			log.Fatalf("create content dir: %v", err)
+		}
+		cfg := config.FromPrefs(p, configDir)
+
+		dbConn, err := db.Open(cfg.DB.Path)
+		if err != nil {
+			log.Fatalf("db: %v", err)
+		}
+		if err := db.Migrate(dbConn); err != nil {
+			log.Fatalf("db migrate: %v", err)
+		}
+		if err := syncLocalUser(dbConn); err != nil {
+			log.Printf("sync local user: %v (continuing)", err)
+		}
+
+		r := render.New(cfg.Render)
+		g, err := gitstore.Open(cfg.Repo.Path)
+		if err != nil {
+			log.Fatalf("git: %v", err)
+		}
+		if p.PushRemote != "" {
+			if err := g.EnsureRemote(cfg.Repo.PushRemote, p.PushRemote); err != nil {
+				log.Printf("git: ensure remote: %v (continuing without push)", err)
+			}
+			g.SetPushToken(p.PushToken)
+		}
+		c := comments.New(dbConn)
+		idx := search.New(dbConn, g)
+		ss := search.NewStore(dbConn)
+
+		if n, err := idx.IndexAll(cfg.Repo.Path); err != nil {
+			log.Printf("search: index walk failed: %v (continuing)", err)
+		} else {
+			log.Printf("search: indexed %d document(s) on startup", n)
+		}
+
+		a := api.New(cfg, r, g, c, idx, ss)
+		handler = server.NewLocal(a, dist)
+		cleanup = func() {
+			if err := dbConn.Close(); err != nil {
+				log.Printf("db close: %v", err)
+			}
+		}
+		log.Printf("local mode (content: %s, db: %s)", cfg.Repo.Path, cfg.DB.Path)
 	}
 
-	a := api.New(cfg, r, g, c, idx, ss)
-	handler := server.New(a, dist)
-
-	url, shutdown, err := server.StartLoopback(cfg.Server.Bind, handler)
+	url, shutdown, err := server.StartLoopback(bindAddr, handler)
 	if err != nil {
 		log.Fatalf("loopback: %v", err)
 	}
 
-	log.Printf("Steelpage at %s (content: %s, db: %s)", url, cfg.Repo.Path, cfg.DB.Path)
+	log.Printf("Steelpage at %s", url)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -127,6 +149,7 @@ func main() {
 	if *headless {
 		<-sigCh
 		_ = shutdown(context.Background())
+		cleanup()
 		return
 	}
 
@@ -158,9 +181,7 @@ func main() {
 		if err := shutdown(ctx); err != nil {
 			log.Printf("loopback shutdown: %v", err)
 		}
-		if err := dbConn.Close(); err != nil {
-			log.Printf("db close: %v", err)
-		}
+		cleanup()
 	})
 
 	// Route Ctrl-C / SIGTERM through the same shutdown path as closing

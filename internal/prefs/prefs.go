@@ -25,6 +25,18 @@ type Prefs struct {
 	// TODO(follow-up): move the token into the OS keychain.
 	PushRemote string `json:"push_remote,omitempty"`
 	PushToken  string `json:"push_token,omitempty"`
+	// ServerURL + ServerToken switch the app into "server mode": instead of
+	// the local archive, the loopback reverse-proxies to a remote steelpage
+	// server using the bearer token. Empty ServerURL → local mode.
+	// TODO(follow-up): move the token into the OS keychain [[steelpage-kyx]].
+	ServerURL   string `json:"server_url,omitempty"`
+	ServerToken string `json:"server_token,omitempty"`
+}
+
+// Remote reports whether the app should run in server mode (proxy to a
+// remote steelpage server) rather than against the local archive.
+func (p Prefs) Remote() bool {
+	return p.ServerURL != "" && p.ServerToken != ""
 }
 
 // Dir returns the platform config directory for the app, e.g.
