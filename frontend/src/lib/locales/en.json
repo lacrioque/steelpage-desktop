@@ -95,7 +95,9 @@
     "status_open": "open",
     "status_resolved": "resolved",
     "status_orphaned": "orphaned",
-    "status_relocated": "relocated"
+    "status_relocated": "relocated",
+    "more": "{count} more",
+    "collapse": "Show less"
   },
   "search": {
     "open": "Search documents",

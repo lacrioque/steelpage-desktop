@@ -19,11 +19,18 @@
   } from "../lib/document-store";
   import NotFound from "./NotFound.svelte";
   import FileActions from "../components/FileActions.svelte";
+  import MarginComments from "../components/MarginComments.svelte";
   import { me } from "../lib/identity";
+
+  // Shown by the shell when there's room for the anchored margin column.
+  export let showMargin = false;
+
+  let articleEl: HTMLElement | undefined;
 
   const dispatch = createEventDispatcher<{
     markerclick: { line: number };
     addcomment: { line: number; anchorText: string };
+    reply: { parent: import("../lib/types").Comment };
   }>();
 
   mermaid.initialize({ startOnLoad: false });
@@ -80,18 +87,24 @@
       </article>
     </section>
   {:else}
-    <article
-      class="document-body"
-      use:commentMarkers={{
-        html: $doc.html,
-        markdown: $doc.markdown,
-        canComment: !$doc.viewing_ref,
-        onMarkerClick: (line) => dispatch("markerclick", { line }),
-        onAddComment: (line, anchorText) => dispatch("addcomment", { line, anchorText }),
-      }}
-    >
-      {@html $doc.html}
-    </article>
+    <div class="read-grid" class:with-margin={showMargin}>
+      {#if showMargin}
+        <MarginComments article={articleEl} htmlVersion={$doc.html} on:reply />
+      {/if}
+      <article
+        bind:this={articleEl}
+        class="document-body"
+        use:commentMarkers={{
+          html: $doc.html,
+          markdown: $doc.markdown,
+          canComment: !$doc.viewing_ref,
+          onMarkerClick: (line) => dispatch("markerclick", { line }),
+          onAddComment: (line, anchorText) => dispatch("addcomment", { line, anchorText }),
+        }}
+      >
+        {@html $doc.html}
+      </article>
+    </div>
   {/if}
 {/if}
 
@@ -152,6 +165,14 @@
   .editor {
     border-right: 1px solid #ded8cc;
     overflow: hidden;
+  }
+  /* Read view with the anchored comments margin on the left. The columns
+     stretch to the row height so the margin column (which holds
+     absolutely-positioned cards) spans the full article height. */
+  .read-grid.with-margin {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 1rem;
   }
   @media (max-width: 860px) {
     .editor-grid {

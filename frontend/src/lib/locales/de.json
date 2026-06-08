@@ -95,7 +95,9 @@
     "status_open": "offen",
     "status_resolved": "erledigt",
     "status_orphaned": "verwaist",
-    "status_relocated": "verschoben"
+    "status_relocated": "verschoben",
+    "more": "{count} weitere",
+    "collapse": "Weniger anzeigen"
   },
   "search": {
     "open": "Dokumente suchen",

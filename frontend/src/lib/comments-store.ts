@@ -59,3 +59,32 @@ export function refreshAfterSave(): void {
 export function snapshot(): Comment[] {
   return get(comments);
 }
+
+// groupByLine groups comments by their anchored line and orders each group
+// so a reply lands directly under its parent (replies pointing at parents
+// that diverged after a save fall back to roots at the bottom).
+export function groupByLine(list: Comment[]): { line: number; items: Comment[] }[] {
+  const byLine = new Map<number, Comment[]>();
+  for (const c of list) {
+    const arr = byLine.get(c.line_start) ?? [];
+    arr.push(c);
+    byLine.set(c.line_start, arr);
+  }
+
+  return [...byLine.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([line, items]) => {
+      const byID = new Map(items.map((c) => [c.id, c]));
+      const roots = items.filter((c) => !c.reply_to || !byID.has(c.reply_to));
+      roots.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      const ordered: Comment[] = [];
+      for (const root of roots) {
+        ordered.push(root);
+        const children = items
+          .filter((c) => c.reply_to && c.reply_to === root.id)
+          .sort((a, b) => a.created_at.localeCompare(b.created_at));
+        ordered.push(...children);
+      }
+      return { line, items: ordered };
+    });
+}

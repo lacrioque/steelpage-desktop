@@ -1,6 +1,13 @@
 import { get } from "svelte/store";
 import { comments } from "./comments-store";
 import type { Comment } from "./types";
+import {
+  type Block,
+  collectBlocks,
+  blockForLine,
+  lineCenterFraction,
+  lineAtFraction,
+} from "./block-geometry";
 
 // commentMarkers is a Svelte action for the read-view `.document-body`
 // article. The Go renderer tags rendered blocks with `data-source-line`
@@ -26,7 +33,6 @@ export type ReadMarkerOptions = {
 };
 
 type MarkerKind = "open" | "relocated";
-type Block = { el: HTMLElement; start: number; end: number };
 
 export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
   let current = opts;
@@ -70,20 +76,14 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
   // centre of the line's proportional band across the block's rendered height.
   function lineTop(block: Block, line: number, base: DOMRect): number {
     const r = block.el.getBoundingClientRect();
-    const span = block.end - block.start + 1;
-    const clamped = Math.min(Math.max(line, block.start), block.end);
-    const frac = (clamped - block.start + 0.5) / span;
-    return r.top - base.top + article.scrollTop + frac * r.height;
+    return r.top - base.top + article.scrollTop + lineCenterFraction(block, line) * r.height;
   }
 
   // inverse of lineTop: which source line does cursor Y fall on inside block.
   function lineAtY(block: Block, clientY: number): number {
     const r = block.el.getBoundingClientRect();
-    const span = block.end - block.start + 1;
-    if (span <= 1 || r.height <= 0) return block.start;
-    const frac = (clientY - r.top) / r.height;
-    const idx = Math.min(span - 1, Math.max(0, Math.floor(frac * span)));
-    return block.start + idx;
+    if (r.height <= 0) return block.start;
+    return lineAtFraction(block, (clientY - r.top) / r.height);
   }
 
   let moveRaf = 0;
@@ -121,45 +121,13 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
     addBtn.style.display = "none";
   }
 
-  function collectBlocks(): Block[] {
-    const blocks: Block[] = [];
-    article.querySelectorAll<HTMLElement>("[data-source-line]").forEach((el) => {
-      const start = parseInt(el.getAttribute("data-source-line") ?? "", 10);
-      if (!Number.isFinite(start)) return;
-      const endAttr = el.getAttribute("data-source-line-end");
-      const end = endAttr ? parseInt(endAttr, 10) : start;
-      blocks.push({ el, start, end: Number.isFinite(end) ? end : start });
-    });
-    blocks.sort((a, b) => a.start - b.start);
-    return blocks;
-  }
-
-  function blockForLine(line: number): Block | null {
-    if (blocks.length === 0) return null;
-    // Prefer the tightest block whose source range contains the line.
-    let best: Block | null = null;
-    for (const b of blocks) {
-      if (line >= b.start && line <= b.end) {
-        if (!best || b.end - b.start < best.end - best.start) best = b;
-      }
-    }
-    if (best) return best;
-    // Otherwise the last block that starts at or before the line.
-    let fallback: Block | null = null;
-    for (const b of blocks) {
-      if (b.start <= line) fallback = b;
-      else break;
-    }
-    return fallback ?? blocks[0];
-  }
-
   function build(list: Comment[]) {
     // {@html} replaces innerHTML and removes our layer — re-attach it.
     if (layer.parentElement !== article) article.appendChild(layer);
     layer.replaceChildren();
 
     // Cache the tagged blocks for marker placement and hover hit-testing.
-    blocks = collectBlocks();
+    blocks = collectBlocks(article);
 
     const byLine = new Map<number, { kind: MarkerKind; count: number }>();
     for (const c of list) {
@@ -175,7 +143,7 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
     markerInfo.clear();
     let any = false;
     for (const [line, info] of byLine) {
-      const block = blockForLine(line);
+      const block = blockForLine(blocks, line);
       if (!block) continue;
       any = true;
       const btn = document.createElement("button");

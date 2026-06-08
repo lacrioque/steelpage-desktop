@@ -33,6 +33,7 @@
   import { getPrefs } from "../lib/prefs-api";
   import { applyFont } from "../lib/fonts";
   import { requestLine } from "../lib/comments-store";
+  import { marginFits } from "../lib/viewport";
   import {
     doc as docStore,
     editing,
@@ -58,6 +59,11 @@
   let addCommentReplyAuthor = "";
   let searchOpen = false;
   let prefsOpen = false;
+
+  // Read view with room → anchored margin (inside DocumentView); edit view or
+  // a narrow window → the accordion fallback.
+  $: marginVisible = showComments && !!$docStore && $marginFits && !$editing;
+  $: accordionVisible = showComments && !!$docStore && ($editing || !$marginFits);
 
   // Replies start from the parent comment's anchor — same line + same
   // captured text — so they re-anchor along with the conversation.
@@ -277,11 +283,16 @@
     {/if}
   </div>
 
-  <div class="layout" class:with-comments={showComments && $docStore}>
+  <div class="layout" class:with-comments={accordionVisible}>
     <section class="doc">
-      <DocumentView on:markerclick={onMarkerClick} on:addcomment={onAddComment} />
+      <DocumentView
+        showMargin={marginVisible}
+        on:markerclick={onMarkerClick}
+        on:addcomment={onAddComment}
+        on:reply={startReply}
+      />
     </section>
-    {#if showComments && $docStore}
+    {#if accordionVisible}
       <CommentsSidebar on:reply={startReply} />
     {/if}
   </div>
