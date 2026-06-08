@@ -115,8 +115,29 @@ jobs:
           (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower() + "  $asset" | Out-File -Encoding ascii "$asset.sha256"
 
       # --- installers ---
+      # .deb / .rpm first: they're the reliable native Linux packages, so a
+      # flaky AppImage build must never block them or the upload.
+      - name: Package .deb + .rpm (linux)
+        if: matrix.name == 'linux-amd64'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          export VERSION="${GITHUB_REF_NAME#v}"
+          deb="steelpage-desktop-${GITHUB_REF_NAME}-linux-amd64.deb"
+          rpm="steelpage-desktop-${GITHUB_REF_NAME}-linux-amd64.rpm"
+          nfpm package -f build/linux/nfpm.yaml -p deb -t "$deb"
+          nfpm package -f build/linux/nfpm.yaml -p rpm -t "$rpm"
+          sha256sum "$deb" > "$deb.sha256"
+          sha256sum "$rpm" > "$rpm.sha256"
+          ls -lh "$deb" "$rpm"
+
+      # Best-effort: bundling WebKitGTK 6.0 into a portable AppImage is fiddly,
+      # so its failure is non-fatal — deb/rpm/tarball still ship.
       - name: Package AppImage (linux)
         if: matrix.name == 'linux-amd64'
+        continue-on-error: true
         shell: bash
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1' # run the tools without host FUSE
@@ -145,22 +166,6 @@ jobs:
             --output appimage
           sha256sum "$OUTPUT" > "$OUTPUT.sha256"
           ls -lh "$OUTPUT"
-
-      - name: Package .deb + .rpm (linux)
-        if: matrix.name == 'linux-amd64'
-        shell: bash
-        run: |
-          set -euxo pipefail
-          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          export VERSION="${GITHUB_REF_NAME#v}"
-          deb="steelpage-desktop-${GITHUB_REF_NAME}-linux-amd64.deb"
-          rpm="steelpage-desktop-${GITHUB_REF_NAME}-linux-amd64.rpm"
-          nfpm package -f build/linux/nfpm.yaml -p deb -t "$deb"
-          nfpm package -f build/linux/nfpm.yaml -p rpm -t "$rpm"
-          sha256sum "$deb" > "$deb.sha256"
-          sha256sum "$rpm" > "$rpm.sha256"
-          ls -lh "$deb" "$rpm"
 
       - name: Package .app + .dmg (macos)
         if: matrix.name == 'macos-arm64'
