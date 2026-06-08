@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Steelpage
+Comment=Personal Markdown archive
+Exec=steelpage-desktop
+Icon=steelpage-desktop
+Categories=Utility;
+Terminal=false
