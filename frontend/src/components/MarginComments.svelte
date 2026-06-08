@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from "svelte";
+  import { onMount, tick, createEventDispatcher } from "svelte";
   import ChevronDown from "carbon-icons-svelte/lib/ChevronDown.svelte";
   import ChevronUp from "carbon-icons-svelte/lib/ChevronUp.svelte";
   import { comments, groupByLine } from "../lib/comments-store";
@@ -15,8 +15,12 @@
 
   const dispatch = createEventDispatcher<{ reply: { parent: Comment } }>();
 
-  type Placement = { line: number; items: Comment[]; top: number };
+  // GAP between stacked cards once collision pushes them apart.
+  const GAP = 10;
+
+  type Placement = { line: number; items: Comment[]; idealTop: number };
   let colEl: HTMLElement;
+  let cardEls: HTMLElement[] = [];
   let placements: Placement[] = [];
   let expanded = new Set<number>();
 
@@ -31,7 +35,9 @@
     raf = requestAnimationFrame(layout);
   }
 
-  function layout() {
+  // Pass 1: compute each card's ideal top (the anchored line position) and
+  // render the cards there.
+  async function layout() {
     if (!article || !colEl) {
       placements = [];
       return;
@@ -41,14 +47,31 @@
     placements = groups
       .map((g) => {
         const block = blockForLine(blocks, g.line);
-        let top = 0;
+        let idealTop = 0;
         if (block) {
           const r = block.el.getBoundingClientRect();
-          top = r.top - colTop + lineTopFraction(block, g.line) * r.height;
+          idealTop = r.top - colTop + lineTopFraction(block, g.line) * r.height;
         }
-        return { line: g.line, items: g.items, top };
+        return { line: g.line, items: g.items, idealTop };
       })
-      .sort((a, b) => a.top - b.top);
+      .sort((a, b) => a.idealTop - b.idealTop);
+
+    // Pass 2: measure rendered heights and resolve collisions.
+    await tick();
+    place();
+  }
+
+  // Sweep top→bottom: each card sits at its ideal top, pushed down only as
+  // far as needed to clear the previous card. Order is preserved.
+  function place() {
+    let prevBottom = -Infinity;
+    placements.forEach((p, i) => {
+      const el = cardEls[i];
+      if (!el) return;
+      const top = Math.max(p.idealTop, prevBottom + GAP);
+      el.style.top = `${top}px`;
+      prevBottom = top + el.offsetHeight;
+    });
   }
 
   function toggle(line: number) {
@@ -75,8 +98,13 @@
 </script>
 
 <div class="margin-col" bind:this={colEl}>
-  {#each placements as p (p.line)}
-    <div class="margin-card" id={`sp-margin-line-${p.line}`} style="top:{p.top}px">
+  {#each placements as p, i (p.line)}
+    <div
+      class="margin-card"
+      id={`sp-margin-line-${p.line}`}
+      bind:this={cardEls[i]}
+      style="top:{p.idealTop}px"
+    >
       <CommentThread items={visibleItems(p)} showJump={false} on:reply />
       {#if p.items.length > 1}
         <button class="more" type="button" on:click={() => toggle(p.line)}>
