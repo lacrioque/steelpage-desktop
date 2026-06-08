@@ -7,6 +7,11 @@ import type { Comment } from "./types";
 // (+ `-end`); this overlays a small dot in the left margin next to every
 // block that has an active comment, mirroring the editor gutter. Clicking
 // a dot calls onMarkerClick(line) so the shell can open the sidebar.
+//
+// A block can span several source lines (e.g. a soft-wrapped paragraph),
+// so a marker's vertical position is interpolated within the block's
+// rendered height from the line's offset in [start, end] — and the hover
+// "+" reads back the line under the cursor the same way.
 
 export type ReadMarkerOptions = {
   // `html` is only a change trigger: when the rendered content is replaced
@@ -27,9 +32,9 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
   let current = opts;
   const layer = document.createElement("div");
   layer.className = "sp-read-markers";
-  // Each marker remembers the block it points at so reposition() can follow
-  // it as the layout reflows (fonts load, mermaid renders, window resizes).
-  const targets = new WeakMap<HTMLElement, HTMLElement>();
+  // Each marker remembers the block + line it points at so reposition() can
+  // re-interpolate as the layout reflows (fonts load, mermaid renders, resize).
+  const markerInfo = new Map<HTMLElement, { block: Block; line: number }>();
   let raf = 0;
 
   // Hover "+" affordance: a single button that follows the cursor in the
@@ -61,6 +66,26 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
     return best;
   }
 
+  // top of `line` within `block`, in article-local coordinates: the vertical
+  // centre of the line's proportional band across the block's rendered height.
+  function lineTop(block: Block, line: number, base: DOMRect): number {
+    const r = block.el.getBoundingClientRect();
+    const span = block.end - block.start + 1;
+    const clamped = Math.min(Math.max(line, block.start), block.end);
+    const frac = (clamped - block.start + 0.5) / span;
+    return r.top - base.top + article.scrollTop + frac * r.height;
+  }
+
+  // inverse of lineTop: which source line does cursor Y fall on inside block.
+  function lineAtY(block: Block, clientY: number): number {
+    const r = block.el.getBoundingClientRect();
+    const span = block.end - block.start + 1;
+    if (span <= 1 || r.height <= 0) return block.start;
+    const frac = (clientY - r.top) / r.height;
+    const idx = Math.min(span - 1, Math.max(0, Math.floor(frac * span)));
+    return block.start + idx;
+  }
+
   let moveRaf = 0;
   function onMove(e: MouseEvent) {
     if (!current.canComment) {
@@ -81,8 +106,12 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
         return;
       }
       const base = article.getBoundingClientRect();
-      addBtn.dataset.line = String(blk.start);
-      addBtn.style.top = `${y - base.top + article.scrollTop - 9}px`;
+      // Anchor to the specific source line under the cursor, and snap the "+"
+      // to that line's interpolated height so it lines up with the dot it'll
+      // become.
+      const line = lineAtY(blk, y);
+      addBtn.dataset.line = String(line);
+      addBtn.style.top = `${lineTop(blk, line, base) - 9}px`;
       addBtn.style.display = "";
     });
   }
@@ -105,7 +134,7 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
     return blocks;
   }
 
-  function targetFor(line: number, blocks: Block[]): HTMLElement | null {
+  function blockForLine(line: number): Block | null {
     if (blocks.length === 0) return null;
     // Prefer the tightest block whose source range contains the line.
     let best: Block | null = null;
@@ -114,14 +143,14 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
         if (!best || b.end - b.start < best.end - best.start) best = b;
       }
     }
-    if (best) return best.el;
+    if (best) return best;
     // Otherwise the last block that starts at or before the line.
     let fallback: Block | null = null;
     for (const b of blocks) {
       if (b.start <= line) fallback = b;
       else break;
     }
-    return (fallback ?? blocks[0]).el;
+    return fallback ?? blocks[0];
   }
 
   function build(list: Comment[]) {
@@ -143,10 +172,11 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
       }
     }
 
+    markerInfo.clear();
     let any = false;
     for (const [line, info] of byLine) {
-      const target = targetFor(line, blocks);
-      if (!target) continue;
+      const block = blockForLine(line);
+      if (!block) continue;
       any = true;
       const btn = document.createElement("button");
       btn.type = "button";
@@ -157,7 +187,7 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
           : `${info.count} comments on this line — click to open`;
       btn.dataset.line = String(line);
       btn.addEventListener("click", () => current.onMarkerClick(line));
-      targets.set(btn, target);
+      markerInfo.set(btn, { block, line });
       layer.appendChild(btn);
     }
 
@@ -173,16 +203,9 @@ export function commentMarkers(article: HTMLElement, opts: ReadMarkerOptions) {
 
   function position() {
     const base = article.getBoundingClientRect();
-    // Stack multiple markers that resolve to the same block.
-    const seen = new Map<HTMLElement, number>();
-    layer.querySelectorAll<HTMLElement>(".sp-read-marker").forEach((btn) => {
-      const target = targets.get(btn);
-      if (!target) return;
-      const r = target.getBoundingClientRect();
-      const top = r.top - base.top + article.scrollTop;
-      const idx = seen.get(target) ?? 0;
-      seen.set(target, idx + 1);
-      btn.style.top = `${top + 6 + idx * 14}px`;
+    // 10px dot → offset by 5 to centre it on the line's interpolated height.
+    markerInfo.forEach(({ block, line }, btn) => {
+      btn.style.top = `${lineTop(block, line, base) - 5}px`;
     });
   }
 
