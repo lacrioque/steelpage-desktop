@@ -54,6 +54,28 @@ launch).
 
 ---
 
+## Connect to a steelpage server (optional)
+
+As an alternative to the local archive, the desktop can act as a thin client
+of a multi-user [Steelpage](https://github.com/lacrioque/steelpage) server,
+authenticated with one of that server's API tokens.
+
+1. On the server's web UI, go to **Account → Tokens**, create a token with the
+   scopes you need (`read`, `comment`, `write`), and copy it (`spt_…` — shown
+   once).
+2. In the desktop, open **Preferences**, choose **Steelpage server**, paste the
+   server URL + token, and hit **Test connection** (it shows "connected as
+   *you*"). Save and relaunch.
+
+While connected, the desktop serves its own UI but proxies all document,
+comment, and search traffic to the server with your token — the server
+enforces its own permissions and scopes. A header chip shows which server
+you're on. Clear the server fields in Preferences to return to the local
+archive. (The token is stored in `prefs.json`; OS-keychain storage is a
+planned follow-up.)
+
+---
+
 ## Build from source
 
 Requirements: Go ≥ 1.26, Node ≥ 20. On Linux additionally the webview headers:

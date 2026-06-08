@@ -171,7 +171,7 @@ func main() {
 		UseApplicationMenu: true,
 	})
 
-	app.Menu.Set(buildMenu(app, win))
+	app.Menu.Set(buildMenu(app, win, p.Remote()))
 
 	// Drain in-flight saves and release the SQLite WAL before the process
 	// exits so no -wal/-shm files are left locked behind (acceptance #6).

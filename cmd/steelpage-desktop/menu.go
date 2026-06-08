@@ -13,7 +13,7 @@ import (
 // lives in the SPA — the menu item just dispatches a DOM event into the
 // webview; archive switching uses the native directory picker and takes
 // effect on next launch.
-func buildMenu(app *application.App, win *application.WebviewWindow) *application.Menu {
+func buildMenu(app *application.App, win *application.WebviewWindow, remote bool) *application.Menu {
 	menu := app.NewMenu()
 
 	if runtime.GOOS == "darwin" {
@@ -21,9 +21,13 @@ func buildMenu(app *application.App, win *application.WebviewWindow) *applicatio
 	}
 
 	file := menu.AddSubmenu("File")
-	file.Add("Open Archive…").SetAccelerator("CmdOrCtrl+O").OnClick(func(_ *application.Context) {
-		openArchiveDialog(app)
-	})
+	// "Open Archive…" only makes sense against the local archive; in server
+	// mode the remote server is the source.
+	if !remote {
+		file.Add("Open Archive…").SetAccelerator("CmdOrCtrl+O").OnClick(func(_ *application.Context) {
+			openArchiveDialog(app)
+		})
+	}
 	file.Add("Preferences…").SetAccelerator("CmdOrCtrl+,").OnClick(func(_ *application.Context) {
 		win.ExecJS(`window.dispatchEvent(new CustomEvent("steelpage:open-prefs"))`)
 	})
