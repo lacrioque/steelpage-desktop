@@ -84,6 +84,16 @@
     requestLine(event.detail.line);
   }
 
+  // The read-view "+" gutter affordance: open the add-comment modal for the
+  // block under the cursor.
+  function onAddComment(event: CustomEvent<{ line: number; anchorText: string }>) {
+    addCommentLine = event.detail.line;
+    addCommentAnchor = event.detail.anchorText;
+    addCommentReplyTo = null;
+    addCommentReplyAuthor = "";
+    addCommentOpen = true;
+  }
+
   // The native menu (File → Preferences…, View → Search) dispatches these
   // DOM events into the webview.
   function onOpenPrefs() {
@@ -269,7 +279,7 @@
 
   <div class="layout" class:with-comments={showComments && $docStore}>
     <section class="doc">
-      <DocumentView on:markerclick={onMarkerClick} />
+      <DocumentView on:markerclick={onMarkerClick} on:addcomment={onAddComment} />
     </section>
     {#if showComments && $docStore}
       <CommentsSidebar on:reply={startReply} />

@@ -21,7 +21,10 @@
   import FileActions from "../components/FileActions.svelte";
   import { me } from "../lib/identity";
 
-  const dispatch = createEventDispatcher<{ markerclick: { line: number } }>();
+  const dispatch = createEventDispatcher<{
+    markerclick: { line: number };
+    addcomment: { line: number; anchorText: string };
+  }>();
 
   mermaid.initialize({ startOnLoad: false });
 
@@ -81,7 +84,10 @@
       class="document-body"
       use:commentMarkers={{
         html: $doc.html,
+        markdown: $doc.markdown,
+        canComment: !$doc.viewing_ref,
         onMarkerClick: (line) => dispatch("markerclick", { line }),
+        onAddComment: (line, anchorText) => dispatch("addcomment", { line, anchorText }),
       }}
     >
       {@html $doc.html}
